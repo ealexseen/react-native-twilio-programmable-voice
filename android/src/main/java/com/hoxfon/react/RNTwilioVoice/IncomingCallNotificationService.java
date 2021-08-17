@@ -200,6 +200,7 @@ public class IncomingCallNotificationService extends Service {
                         .setPriority(NotificationCompat.PRIORITY_HIGH)
                         .setCategory(Notification.CATEGORY_CALL)
                         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                        .setContentIntent(pendingIntent)ы
                 ;
 
         // build notification large icon

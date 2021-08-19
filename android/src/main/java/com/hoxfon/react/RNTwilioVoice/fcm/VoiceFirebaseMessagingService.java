@@ -46,9 +46,9 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
     public void onNewToken(String token) {
         super.onNewToken(token);
 
-        Log.d(LOG_TAG, "onNewToken FirebaseMessagingIdService: " + refreshedToken);
+        Log.d(LOG_TAG, "onNewToken FirebaseMessagingIdService: " + token);
 
-        intercomPushClient.sendTokenToIntercom(getApplication(), refreshedToken);
+        intercomPushClient.sendTokenToIntercom(getApplication(), token);
         //DO HOST LOGIC HERE
 
         Intent intent = new Intent(Constants.ACTION_FCM_TOKEN);

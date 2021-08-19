@@ -33,12 +33,12 @@ public class HeadsetManager {
         }
         if (context == null) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "startWiredHeadsetEvent() reactContext is null");
+                Log.i(TAG, "startWiredHeadsetEvent() reactContext is null");
             }
             return;
         }
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "startWiredHeadsetEvent()");
+            Log.i(TAG, "startWiredHeadsetEvent()");
         }
         wiredHeadsetReceiver = new BroadcastReceiver() {
             @Override
@@ -65,12 +65,12 @@ public class HeadsetManager {
         }
         if (context == null) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "stopWiredHeadsetEvent() reactContext is null");
+                Log.i(TAG, "stopWiredHeadsetEvent() reactContext is null");
             }
             return;
         }
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "stopWiredHeadsetEvent()");
+            Log.i(TAG, "stopWiredHeadsetEvent()");
         }
         context.unregisterReceiver(wiredHeadsetReceiver);
         wiredHeadsetReceiver = null;

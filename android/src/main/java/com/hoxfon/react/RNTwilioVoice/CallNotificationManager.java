@@ -67,7 +67,7 @@ public class CallNotificationManager {
 
     public void createMissedCallNotification(ReactApplicationContext context, String callSid, String callFrom) {
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "createMissedCallNotification()");
+            Log.i(TAG, "createMissedCallNotification()");
         }
         SharedPreferences sharedPref = context.getSharedPreferences(Constants.PREFERENCE_KEY, Context.MODE_PRIVATE);
         SharedPreferences.Editor sharedPrefEditor = sharedPref.edit();

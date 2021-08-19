@@ -38,7 +38,7 @@ public class IncomingCallNotificationService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "IncomingCallNotificationService onStartCommand() intent: " + intent + ", flags: " + flags);
+            Log.i(TAG, "IncomingCallNotificationService onStartCommand() intent: " + intent + ", flags: " + flags);
         }
         String action = intent.getAction();
 
@@ -65,9 +65,10 @@ public class IncomingCallNotificationService extends Service {
 
             case Constants.ACTION_JS_ANSWER:
                 endForeground();
-                break;
+                break;   
 
             case Constants.ACTION_JS_REJECT:
+                LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
                 endForeground();
                 break;
 
@@ -255,12 +256,16 @@ public class IncomingCallNotificationService extends Service {
     }
 
     private void reject(CallInvite callInvite, int notificationId) {
+        Log.i(TAG, "reject() 1111");
+
         SoundPoolManager.getInstance(this).stopRinging();
         endForeground();
         callInvite.reject(getApplicationContext());
     }
 
     private void handleCancelledCall(Intent intent) {
+        Log.i(TAG, "handleCancelledCall() 1111");
+
         SoundPoolManager.getInstance(this).stopRinging();
         endForeground();
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
@@ -280,7 +285,7 @@ public class IncomingCallNotificationService extends Service {
     @TargetApi(Build.VERSION_CODES.O)
     private void setCallInProgressNotification(CallInvite callInvite, int notificationId) {
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "setCallInProgressNotification()");
+            Log.i(TAG, "setCallInProgressNotification()");
         }
         int importance = NotificationManager.IMPORTANCE_LOW;
         if (!isAppVisible()) {
@@ -297,19 +302,19 @@ public class IncomingCallNotificationService extends Service {
      */
     private void sendCallInviteToActivity(CallInvite callInvite, int notificationId) {
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "sendCallInviteToActivity(). Android SDK: " + Build.VERSION.SDK_INT + " app visible: " + isAppVisible());
+            Log.i(TAG, "sendCallInviteToActivity(). Android SDK: " + Build.VERSION.SDK_INT + " app visible: " + isAppVisible());
         }
         SoundPoolManager.getInstance(this).playRinging();
 
         // From Android SDK 29 apps are prevented to start an activity from the background
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !isAppVisible()) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "sendCallInviteToActivity(). DO NOTHING");
+                Log.i(TAG, "sendCallInviteToActivity(). DO NOTHING");
             }
             return;
         }
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "sendCallInviteToActivity(). startActivity()");
+            Log.i(TAG, "sendCallInviteToActivity(). startActivity()");
         }
         // Android SDK < 29 or app is visible
         Intent intent = new Intent(this, getMainActivityClass(this));

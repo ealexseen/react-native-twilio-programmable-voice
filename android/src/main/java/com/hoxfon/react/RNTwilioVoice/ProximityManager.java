@@ -71,14 +71,14 @@ public class ProximityManager {
     private void turnScreenOn() {
         if (proximityWakeLock == null) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, ERROR_PROXIMITY_LOCK_NOT_SUPPORTED);
+                Log.i(TAG, ERROR_PROXIMITY_LOCK_NOT_SUPPORTED);
             }
             return;
         }
         synchronized (proximityWakeLock) {
             if (proximityWakeLock.isHeld()) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "turnScreenOn()");
+                    Log.i(TAG, "turnScreenOn()");
                 }
                 if (android.os.Build.VERSION.SDK_INT >= 21) {
                     proximityWakeLock.release(PowerManager.RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY);
@@ -90,14 +90,14 @@ public class ProximityManager {
     private void turnScreenOff() {
         if (proximityWakeLock == null) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, ERROR_PROXIMITY_LOCK_NOT_SUPPORTED);
+                Log.i(TAG, ERROR_PROXIMITY_LOCK_NOT_SUPPORTED);
             }
             return;
         }
         synchronized (proximityWakeLock) {
             if (!proximityWakeLock.isHeld()) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "turnScreenOff()");
+                    Log.i(TAG, "turnScreenOff()");
                 }
                 proximityWakeLock.acquire();
             }
@@ -109,7 +109,7 @@ public class ProximityManager {
             return;
         }
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "initProximitySensorEventListener()");
+            Log.i(TAG, "initProximitySensorEventListener()");
         }
         proximityListener = new SensorEventListener() {
             @Override
@@ -144,7 +144,7 @@ public class ProximityManager {
         initProximitySensorEventListener();
         if (proximityListener != null) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "register proximity listener");
+                Log.i(TAG, "register proximity listener");
             }
             // SensorManager.SENSOR_DELAY_FASTEST(0 ms),
             // SensorManager.SENSOR_DELAY_GAME(20 ms),
@@ -165,7 +165,7 @@ public class ProximityManager {
         }
         if (proximityListener != null) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "unregister proximity listener");
+                Log.i(TAG, "unregister proximity listener");
             }
             sensorManager.unregisterListener(proximityListener);
             proximityListener = null;

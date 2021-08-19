@@ -33,7 +33,7 @@ public class EventManager {
 
     public void sendEvent(String eventName, @Nullable WritableMap params) {
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "sendEvent "+eventName+" params "+params);
+            Log.i(TAG, "sendEvent "+eventName+" params "+params);
         }
         if (mContext.hasActiveCatalystInstance()) {
             mContext
@@ -41,7 +41,7 @@ public class EventManager {
                 .emit(eventName, params);
         } else {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "failed Catalyst instance not active");
+                Log.i(TAG, "failed Catalyst instance not active");
             }
         }
     }

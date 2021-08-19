@@ -76,6 +76,8 @@ import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_AUDIO_DEVICES_UP
 
 public class TwilioVoiceModule extends ReactContextBaseJavaModule implements ActivityEventListener, LifecycleEventListener {
 
+    private OnCallListener onCallListener;
+
     public static String TAG = "RNTwilioVoice";
 
     private static final int MIC_PERMISSION_REQUEST_CODE = 1;
@@ -150,6 +152,10 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
         if (shouldAskForMicPermission && !checkPermissionForMicrophone()) {
             requestPermissionForMicrophone();
         }
+    }
+
+    public void setOnCallListener(OnCallListener listener) {
+        onCallListener = listener;
     }
 
     @Override
@@ -240,7 +246,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
         };
     }
 
-    private UnregistrationListener unregistrationListener() {
+    private UnregistrationListener unregistrationListener() {   
         return new UnregistrationListener() {
             @Override
             public void onUnregistered(String accessToken, String fcmToken) {
@@ -474,7 +480,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
         sharedPrefEditor.commit();
     }
 
-    private class VoiceBroadcastReceiver extends BroadcastReceiver {
+    public class VoiceBroadcastReceiver extends BroadcastReceiver {
 
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -800,6 +806,8 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
 
         getReactApplicationContext().startService(intent);
 
+        Log.i(TAG, "reject()");
+
         eventManager.sendEvent(EVENT_CALL_INVITE_CANCELLED, params);
         activeCallInvite = null;
     }
@@ -1014,5 +1022,9 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
                 break;
         }
         return initialProperties;
+    }
+
+    interface OnCallListener {
+        void onCallCanceled();
     }
 }

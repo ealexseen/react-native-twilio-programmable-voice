@@ -1,833 +1,1018 @@
-#import "RNTwilioVoice.h"
-#import <React/RCTLog.h>
+package com.hoxfon.react.RNTwilioVoice;
 
-@import AVFoundation;
-@import PushKit;
-@import CallKit;
-@import TwilioVoice;
+import android.Manifest;
+import android.app.Activity;
+import android.app.ActivityManager.RunningAppProcessInfo;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.media.AudioManager;
+import android.os.Build;
 
-NSString * const kCachedDeviceToken = @"CachedDeviceToken";
-NSString * const kCallerNameCustomParameter = @"CallerName";
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import kotlin.Unit;
 
-@interface RNTwilioVoice () <PKPushRegistryDelegate, TVONotificationDelegate, TVOCallDelegate, CXProviderDelegate>
+import android.os.Bundle;
+import android.util.Log;
 
-@property (nonatomic, strong) PKPushRegistry *voipRegistry;
-@property (nonatomic, strong) void(^incomingPushCompletionCallback)(void);
-@property (nonatomic, strong) void(^callKitCompletionCallback)(BOOL);
-@property (nonatomic, strong) TVODefaultAudioDevice *audioDevice;
-@property (nonatomic, strong) NSMutableDictionary *activeCallInvites;
-@property (nonatomic, strong) NSMutableDictionary *activeCalls;
+import com.facebook.react.bridge.JSApplicationIllegalArgumentException;
+import com.facebook.react.bridge.AssertionException;
+import com.facebook.react.bridge.LifecycleEventListener;
+import com.facebook.react.bridge.ReadableMap;
 
-// activeCall represents the last connected call
-@property (nonatomic, strong) TVOCall *activeCall;
-@property (nonatomic, strong) CXProvider *callKitProvider;
-@property (nonatomic, strong) CXCallController *callKitCallController;
-@property (nonatomic, assign) BOOL userInitiatedDisconnect;
+import com.facebook.react.bridge.ActivityEventListener;
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.ReadableMapKeySetIterator;
+import com.facebook.react.bridge.ReadableType;
+import com.facebook.react.bridge.WritableMap;
 
-@end
+import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.Promise;
+import com.facebook.react.bridge.ReactContextBaseJavaModule;
+import com.facebook.react.bridge.ReactMethod;
 
-@implementation RNTwilioVoice {
-  NSMutableDictionary *_settings;
-  NSMutableDictionary *_callParams;
-  NSString *_tokenUrl;
-  NSString *_token;
-}
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.iid.FirebaseInstanceId;
+import com.google.firebase.iid.InstanceIdResult;
 
-NSString * const StateConnecting = @"CONNECTING";
-NSString * const StateConnected = @"CONNECTED";
-NSString * const StateDisconnected = @"DISCONNECTED";
-NSString * const StateRejected = @"REJECTED";
+import com.twilio.audioswitch.AudioDevice;
+import com.twilio.audioswitch.AudioSwitch;
+import com.twilio.voice.AcceptOptions;
+import com.twilio.voice.Call;
+import com.twilio.voice.CallException;
+import com.twilio.voice.CallInvite;
+import com.twilio.voice.CancelledCallInvite;
+import com.twilio.voice.ConnectOptions;
+import com.twilio.voice.LogLevel;
+import com.twilio.voice.RegistrationException;
+import com.twilio.voice.RegistrationListener;
+import com.twilio.voice.UnregistrationListener;
+import com.twilio.voice.Voice;
 
-- (dispatch_queue_t)methodQueue
-{
-  return dispatch_get_main_queue();
-}
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.List;
 
-RCT_EXPORT_MODULE()
+import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_CONNECTION_DID_CONNECT;
+import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_CONNECTION_DID_DISCONNECT;
+import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_DEVICE_DID_RECEIVE_INCOMING;
+import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_DEVICE_NOT_READY;
+import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_DEVICE_READY;
+import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_CALL_STATE_RINGING;
+import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_CALL_INVITE_CANCELLED;
+import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_CONNECTION_IS_RECONNECTING;
+import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_CONNECTION_DID_RECONNECT;
+import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_AUDIO_DEVICES_UPDATED;
 
-- (NSArray<NSString *> *)supportedEvents
-{
-  return @[@"connectionDidConnect", @"connectionDidDisconnect", @"callRejected", @"deviceReady", @"deviceNotReady", @"deviceDidReceiveIncoming", @"callInviteCancelled", @"callStateRinging", @"connectionIsReconnecting", @"connectionDidReconnect"];
-}
+public class TwilioVoiceModule extends ReactContextBaseJavaModule implements ActivityEventListener, LifecycleEventListener {
 
-@synthesize bridge = _bridge;
+    public static String TAG = "RNTwilioVoice";
 
-- (void)dealloc {
-  if (self.callKitProvider) {
-    [self.callKitProvider invalidate];
-  }
+    private static final int MIC_PERMISSION_REQUEST_CODE = 1;
 
-  [[NSNotificationCenter defaultCenter] removeObserver:self];
-}
+    private boolean isReceiverRegistered = false;
+    private VoiceBroadcastReceiver voiceBroadcastReceiver;
 
-RCT_EXPORT_METHOD(initWithAccessToken:(NSString *)token) {
-  _token = token;
-  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleAppTerminateNotification) name:UIApplicationWillTerminateNotification object:nil];
-  [self initPushRegistry];
-}
+    // Empty HashMap, contains parameters for the Outbound call
+    private HashMap<String, String> twiMLParams = new HashMap<>();
 
-RCT_EXPORT_METHOD(configureCallKit: (NSDictionary *)params) {
-  if (self.callKitCallController == nil) {
-      /*
-       * The important thing to remember when providing a TVOAudioDevice is that the device must be set
-       * before performing any other actions with the SDK (such as connecting a Call, or accepting an incoming Call).
-       * In this case we've already initialized our own `TVODefaultAudioDevice` instance which we will now set.
-       */
-      self.audioDevice = [TVODefaultAudioDevice audioDevice];
-      TwilioVoice.audioDevice = self.audioDevice;
+    private CallNotificationManager callNotificationManager;
+    private ProximityManager proximityManager;
 
-      self.activeCallInvites = [NSMutableDictionary dictionary];
-      self.activeCalls = [NSMutableDictionary dictionary];
+    private String accessToken;
 
-    _settings = [[NSMutableDictionary alloc] initWithDictionary:params];
-    CXProviderConfiguration *configuration = [[CXProviderConfiguration alloc] initWithLocalizedName:params[@"appName"]];
-    configuration.maximumCallGroups = 1;
-    configuration.maximumCallsPerCallGroup = 1;
-    if (_settings[@"imageName"]) {
-      configuration.iconTemplateImageData = UIImagePNGRepresentation([UIImage imageNamed:_settings[@"imageName"]]);
-    }
-    if (_settings[@"ringtoneSound"]) {
-      configuration.ringtoneSound = _settings[@"ringtoneSound"];
-    }
+    private String toNumber = "";
+    private String toName = "";
 
-    _callKitProvider = [[CXProvider alloc] initWithConfiguration:configuration];
-    [_callKitProvider setDelegate:self queue:nil];
+    static Map<String, Integer> callNotificationMap;
 
-    NSLog(@"TVoice CallKit Initialized");
+    private RegistrationListener registrationListener = registrationListener();
+    private UnregistrationListener unregistrationListener = unregistrationListener();
+    private Call.Listener callListener = callListener();
 
-    self.callKitCallController = [[CXCallController alloc] init];
-  }
-}
+    private CallInvite activeCallInvite;
+    private Call activeCall;
 
-RCT_EXPORT_METHOD(connect: (NSDictionary *)params) {
-  NSLog(@"TVoice Calling phone number %@", [params valueForKey:@"To"]);
-
-  UIDevice* device = [UIDevice currentDevice];
-  device.proximityMonitoringEnabled = YES;
-
-  if (self.activeCall && self.activeCall.state == TVOCallStateConnected) {
-    [self performEndCallActionWithUUID:self.activeCall.uuid];
-  } else {
-    NSUUID *uuid = [NSUUID UUID];
-    NSString *handle = [params valueForKey:@"To"];
-    _callParams = [[NSMutableDictionary alloc] initWithDictionary:params];
-    [self performStartCallActionWithUUID:uuid handle:handle];
-  }
-}
-
-RCT_EXPORT_METHOD(disconnect) {
-    NSLog(@"TVoice Disconnecting call. UUID %@", self.activeCall.uuid.UUIDString);
-    self.userInitiatedDisconnect = YES;
-    [self performEndCallActionWithUUID:self.activeCall.uuid];
-}
-
-RCT_EXPORT_METHOD(setMuted: (BOOL *)muted) {
-  NSLog(@"TVoice Mute/UnMute call");
-    self.activeCall.muted = muted ? YES : NO;
-}
-
-RCT_EXPORT_METHOD(setOnHold: (BOOL *)isOnHold) {
-  NSLog(@"TVoice Hold/Unhold call");
-    self.activeCall.onHold = isOnHold ? YES : NO;
-}
-
-RCT_EXPORT_METHOD(setSpeakerPhone: (BOOL *)speaker) {
-    [self toggleAudioRoute: speaker ? YES : NO];
-}
-
-RCT_EXPORT_METHOD(sendDigits: (NSString *)digits) {
-  if (self.activeCall && self.activeCall.state == TVOCallStateConnected) {
-    NSLog(@"TVoice SendDigits %@", digits);
-    [self.activeCall sendDigits:digits];
-  }
-}
-
-RCT_EXPORT_METHOD(unregister) {
-  NSLog(@"TVoice unregister");
-  NSString *accessToken = [self fetchAccessToken];
-  NSString *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
-  if ([cachedDeviceToken length] > 0) {
-      [TwilioVoice unregisterWithAccessToken:accessToken
-                                 deviceToken:cachedDeviceToken
-                                  completion:^(NSError * _Nullable error) {
-                                    if (error) {
-                                        NSLog(@"TVoice An error occurred while unregistering: %@", [error localizedDescription]);
-                                    } else {
-                                        [[NSUserDefaults standardUserDefaults] setValue:@"" forKey:kCachedDeviceToken];
-                                        NSLog(@"TVoice Successfully unregistered for VoIP push notifications.");
-                                    }
-                                }];
-  }
-}
-
-RCT_REMAP_METHOD(getActiveCall,
-                 activeCallResolver:(RCTPromiseResolveBlock)resolve
-                 activeCallRejecter:(RCTPromiseRejectBlock)reject) {
-    NSMutableDictionary *params = [[NSMutableDictionary alloc] init];
-    if (self.activeCall) {
-        if (self.activeCall.sid) {
-            [params setObject:self.activeCall.sid forKey:@"call_sid"];
-        }
-        if (self.activeCall.to) {
-            [params setObject:self.activeCall.to forKey:@"call_to"];
-        }
-        if (self.activeCall.from) {
-            [params setObject:self.activeCall.from forKey:@"call_from"];
-        }
-        if (self.activeCall.state == TVOCallStateConnected) {
-            [params setObject:StateConnected forKey:@"call_state"];
-        } else if (self.activeCall.state == TVOCallStateConnecting) {
-            [params setObject:StateConnecting forKey:@"call_state"];
-        } else if (self.activeCall.state == TVOCallStateDisconnected) {
-            [params setObject:StateDisconnected forKey:@"call_state"];
-        }
-    }
-    resolve(params);
-}
-
-RCT_REMAP_METHOD(getCallInvite,
-                 callInvieteResolver:(RCTPromiseResolveBlock)resolve
-                 callInviteRejecter:(RCTPromiseRejectBlock)reject) {
-    NSMutableDictionary *params = [[NSMutableDictionary alloc] init];
-    if (self.activeCallInvites.count) {
-        // considering only the first call invite
-        TVOCallInvite *callInvite = [self.activeCallInvites valueForKey:[self.activeCallInvites allKeys][self.activeCallInvites.count-1]];
-        if (callInvite.callSid) {
-            [params setObject:callInvite.callSid forKey:@"call_sid"];
-        }
-        if (callInvite.from) {
-            [params setObject:callInvite.from forKey:@"call_from"];
-        }
-        if (callInvite.to) {
-            [params setObject:callInvite.to forKey:@"call_to"];
-        }
-    }
-    resolve(params);
-}
-
-- (void)initPushRegistry {
-  self.voipRegistry = [[PKPushRegistry alloc] initWithQueue:dispatch_get_main_queue()];
-  self.voipRegistry.delegate = self;
-  self.voipRegistry.desiredPushTypes = [NSSet setWithObject:PKPushTypeVoIP];
-}
-
-- (NSString *)fetchAccessToken {
-  if (_tokenUrl) {
-    NSString *accessToken = [NSString stringWithContentsOfURL:[NSURL URLWithString:_tokenUrl]
-                                                     encoding:NSUTF8StringEncoding
-                                                        error:nil];
-    return accessToken;
-  } else {
-    return _token;
-  }
-}
-
-#pragma mark - PKPushRegistryDelegate
-- (void)pushRegistry:(PKPushRegistry *)registry didUpdatePushCredentials:(PKPushCredentials *)credentials forType:(NSString *)type {
-  NSLog(@"TVoice pushRegistry:didUpdatePushCredentials:forType");
-
-  if ([type isEqualToString:PKPushTypeVoIP]) {
-    const unsigned *tokenBytes = [credentials.token bytes];
-    NSString *deviceTokenString = [NSString stringWithFormat:@"<%08x %08x %08x %08x %08x %08x %08x %08x>",
-                                                        ntohl(tokenBytes[0]), ntohl(tokenBytes[1]), ntohl(tokenBytes[2]),
-                                                        ntohl(tokenBytes[3]), ntohl(tokenBytes[4]), ntohl(tokenBytes[5]),
-                                                        ntohl(tokenBytes[6]), ntohl(tokenBytes[7])];
-    NSString *accessToken = [self fetchAccessToken];
-    NSString *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
-    if (![cachedDeviceToken isEqualToString:deviceTokenString]) {
-        cachedDeviceToken = deviceTokenString;
-
-        /*
-         * Perform registration if a new device token is detected.
-         */
-        [TwilioVoice registerWithAccessToken:accessToken
-                                 deviceToken:cachedDeviceToken
-                                  completion:^(NSError *error) {
-             if (error) {
-                 NSLog(@"TVoice An error occurred while registering: %@", [error localizedDescription]);
-                 NSMutableDictionary *params = [[NSMutableDictionary alloc] init];
-                 [params setObject:[error localizedDescription] forKey:@"err"];
-
-                 [self sendEventWithName:@"deviceNotReady" body:params];
-             }
-             else {
-                 NSLog(@"TVoice Successfully registered for VoIP push notifications.");
-
-                 /*
-                  * Save the device token after successfully registered.
-                  */
-                 [[NSUserDefaults standardUserDefaults] setObject:cachedDeviceToken forKey:kCachedDeviceToken];
-                 [self sendEventWithName:@"deviceReady" body:nil];
-             }
-         }];
-    } else {
-        [self sendEventWithName:@"deviceReady" body:nil];
-    }
-  }
-}
-
-- (void)pushRegistry:(PKPushRegistry *)registry didInvalidatePushTokenForType:(PKPushType)type {
-  NSLog(@"TVoice pushRegistry:didInvalidatePushTokenForType");
-
-  if ([type isEqualToString:PKPushTypeVoIP]) {
-    NSString *accessToken = [self fetchAccessToken];
-
-    NSString *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
-    if ([cachedDeviceToken length] > 0) {
-        [TwilioVoice unregisterWithAccessToken:accessToken
-                                                deviceToken:cachedDeviceToken
-                                                 completion:^(NSError * _Nullable error) {
-                                                   if (error) {
-                                                     NSLog(@"TVoice An error occurred while unregistering: %@", [error localizedDescription]);
-                                                   } else {
-                                                     [[NSUserDefaults standardUserDefaults] setValue:@"" forKey:kCachedDeviceToken];
-                                                     NSLog(@"TVoice Successfully unregistered for VoIP push notifications.");
-                                                   }
-                                                 }];
-    }
-  }
-}
-
-/**
-* Try using the `pushRegistry:didReceiveIncomingPushWithPayload:forType:withCompletionHandler:` method if
-* your application is targeting iOS 11. According to the docs, this delegate method is deprecated by Apple.
-*/
-- (void)pushRegistry:(PKPushRegistry *)registry didReceiveIncomingPushWithPayload:(PKPushPayload *)payload forType:(NSString *)type {
-  NSLog(@"TVoice pushRegistry:didReceiveIncomingPushWithPayload:forType");
-  if ([type isEqualToString:PKPushTypeVoIP]) {
-      // The Voice SDK will use main queue to invoke `cancelledCallInviteReceived:error` when delegate queue is not passed
-      if (![TwilioVoice handleNotification:payload.dictionaryPayload delegate:self delegateQueue: nil]) {
-          NSLog(@"TVoice This is not a valid Twilio Voice notification.");
-      }
-  }
-}
-
-/**
- * This delegate method is available on iOS 11 and above. Call the completion handler once the
- * notification payload is passed to the `TwilioVoice.handleNotification()` method.
- */
-- (void)pushRegistry:(PKPushRegistry *)registry
-didReceiveIncomingPushWithPayload:(PKPushPayload *)payload
-             forType:(PKPushType)type
-withCompletionHandler:(void (^)(void))completion {
-    NSLog(@"TVoice pushRegistry:didReceiveIncomingPushWithPayload:forType:withCompletionHandler");
-
-    // Save for later when the notification is properly handled.
-    self.incomingPushCompletionCallback = completion;
-
-
-    if ([type isEqualToString:PKPushTypeVoIP]) {
-        // The Voice SDK will use main queue to invoke `cancelledCallInviteReceived:error` when delegate queue is not passed
-        if (![TwilioVoice handleNotification:payload.dictionaryPayload delegate:self delegateQueue: nil]) {
-            NSLog(@"TVoice This is not a valid Twilio Voice notification.");
-        }
-    }
-    if ([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion < 13) {
-        // Save for later when the notification is properly handled.
-        self.incomingPushCompletionCallback = completion;
-    } else {
-        /**
-        * The Voice SDK processes the call notification and returns the call invite synchronously. Report the incoming call to
-        * CallKit and fulfill the completion before exiting this callback method.
-        */
-        completion();
-    }
-}
-
-- (void)incomingPushHandled {
-    if (self.incomingPushCompletionCallback) {
-        self.incomingPushCompletionCallback();
-        self.incomingPushCompletionCallback = nil;
-    }
-}
-
-#pragma mark - TVONotificationDelegate
-- (void)callInviteReceived:(TVOCallInvite *)callInvite {
-    /**
-     * Calling `[TwilioVoice handleNotification:delegate:]` will synchronously process your notification payload and
-     * provide you a `TVOCallInvite` object. Report the incoming call to CallKit upon receiving this callback.
-     */
-    NSLog(@"TVoice callInviteReceived");
-    NSString *from = @"Unknown";
-    if (callInvite.from) {
-        from = [callInvite.from stringByReplacingOccurrencesOfString:@"client:" withString:@""];
-    }
-    if (callInvite.customParameters[kCallerNameCustomParameter]) {
-        from = callInvite.customParameters[kCallerNameCustomParameter];
-    }
-    // Always report to CallKit
-    [self reportIncomingCallFrom:from withUUID:callInvite.uuid];
-    self.activeCallInvites[[callInvite.uuid UUIDString]] = callInvite;
-    if ([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion < 13) {
-        [self incomingPushHandled];
-    }
-
-    NSMutableDictionary *params = [[NSMutableDictionary alloc] init];
-    if (callInvite.callSid) {
-      [params setObject:callInvite.callSid forKey:@"call_sid"];
-    }
-    if (callInvite.from) {
-      [params setObject:callInvite.from forKey:@"call_from"];
-    }
-    if (callInvite.to) {
-      [params setObject:callInvite.to forKey:@"call_to"];
-    }
-    if (callInvite.customParameters) {
-      [params setObject:callInvite.customParameters forKey:@"custom_parameters"];
-    }
-
-    [self sendEventWithName:@"deviceDidReceiveIncoming" body:params];
-}
-
-- (void)cancelledCallInviteReceived:(nonnull TVOCancelledCallInvite *)cancelledCallInvite {
-    /**
-    * The SDK may call `[TVONotificationDelegate callInviteReceived:error:]` asynchronously on the dispatch queue
-    * with a `TVOCancelledCallInvite` if the caller hangs up or the client encounters any other error before the called
-    * party could answer or reject the call.
-    */
-    NSLog(@"TVoice cancelledCallInviteReceived");
-    TVOCallInvite *callInvite;
-    for (NSString *activeCallInviteId in self.activeCallInvites) {
-        TVOCallInvite *activeCallInvite = [self.activeCallInvites objectForKey:activeCallInviteId];
-        if ([cancelledCallInvite.callSid isEqualToString:activeCallInvite.callSid]) {
-            callInvite = activeCallInvite;
-            break;
-        }
-    }
-    if (callInvite) {
-        [self performEndCallActionWithUUID:callInvite.uuid];
-        NSMutableDictionary *params = [[NSMutableDictionary alloc] init];
-        if (callInvite.callSid) {
-            [params setObject:callInvite.callSid forKey:@"call_sid"];
-        }
-        if (callInvite.from) {
-            [params setObject:callInvite.from forKey:@"call_from"];
-        }
-        if (callInvite.to) {
-            [params setObject:callInvite.to forKey:@"call_to"];
-        }
-        [self sendEventWithName:@"callInviteCancelled" body:params];
-    }
-}
-
-
-- (void)cancelledCallInviteReceived:(TVOCancelledCallInvite *)cancelledCallInvite error:(NSError *)error {
-    /**
-    * The SDK may call `[TVONotificationDelegate callInviteReceived:error:]` asynchronously on the dispatch queue
-    * with a `TVOCancelledCallInvite` if the caller hangs up or the client encounters any other error before the called
-    * party could answer or reject the call.
-    */
-    NSLog(@"TVoice cancelledCallInviteReceived with error %@", error);
-    TVOCallInvite *callInvite;
-    for (NSString *activeCallInviteId in self.activeCallInvites) {
-        TVOCallInvite *activeCallInvite = [self.activeCallInvites objectForKey:activeCallInviteId];
-        if ([cancelledCallInvite.callSid isEqualToString:activeCallInvite.callSid]) {
-            callInvite = activeCallInvite;
-            break;
-        }
-    }
-    if (callInvite) {
-        [self performEndCallActionWithUUID:callInvite.uuid];
-        NSMutableDictionary *params = [[NSMutableDictionary alloc] init];
-        if (callInvite.callSid) {
-            [params setObject:callInvite.callSid forKey:@"call_sid"];
-        }
-        if (callInvite.from) {
-            [params setObject:callInvite.from forKey:@"call_from"];
-        }
-        if (callInvite.to) {
-            [params setObject:callInvite.to forKey:@"call_to"];
-        }
-        [self sendEventWithName:@"callInviteCancelled" body:params];
-    }
-}
-
-- (void)notificationError:(NSError *)error {
-  NSLog(@"TVoice notificationError: %@", [error localizedDescription]);
-}
-
-#pragma mark - TVOCallDelegate
-- (void)callDidStartRinging:(TVOCall *)call {
-    NSLog(@"TVoice callDidStartRinging");
+    private HeadsetManager headsetManager;
+    private EventManager eventManager;
+    private int existingCallInviteIntent;
 
     /*
-     When [answerOnBridge](https://www.twilio.com/docs/voice/twiml/dial#answeronbridge) is enabled in the
-     <Dial> TwiML verb, the caller will not hear the ringback while the call is ringing and awaiting to be
-     accepted on the callee's side. The application can use the `AVAudioPlayer` to play custom audio files
-     between the `[TVOCallDelegate callDidStartRinging:]` and the `[TVOCallDelegate callDidConnect:]` callbacks.
+     * Audio device management
      */
-    NSMutableDictionary *callParams = [[NSMutableDictionary alloc] init];
-    [callParams setObject:call.sid forKey:@"call_sid"];
-    if (call.from) {
-        [callParams setObject:call.from forKey:@"call_from"];
-    }
-    [self sendEventWithName:@"callStateRinging" body:callParams];
-}
+    private AudioSwitch audioSwitch;
+    private int savedVolumeControlStream;
+    AudioDevice selectedAudioDevice;
+    Map<String, AudioDevice> availableAudioDevices;
 
-#pragma mark - TVOCallDelegate
-- (void)callDidConnect:(TVOCall *)call {
-     NSLog(@"TVoice callDidConnect");
-  self.callKitCompletionCallback(YES);
+    public TwilioVoiceModule(ReactApplicationContext reactContext,
+                             boolean shouldAskForMicPermission) {
+        super(reactContext);
 
-  NSMutableDictionary *callParams = [[NSMutableDictionary alloc] init];
-  [callParams setObject:call.sid forKey:@"call_sid"];
-  if (call.state == TVOCallStateConnecting) {
-    [callParams setObject:StateConnecting forKey:@"call_state"];
-  } else if (call.state == TVOCallStateConnected) {
-    [callParams setObject:StateConnected forKey:@"call_state"];
-  }
-
-  if (call.from) {
-    [callParams setObject:call.from forKey:@"call_from"];
-  }
-  if (call.to) {
-    [callParams setObject:call.to forKey:@"call_to"];
-  }
-
-  [self sendEventWithName:@"connectionDidConnect" body:callParams];
-}
-
-- (void)call:(TVOCall *)call isReconnectingWithError:(NSError *)error {
-    NSLog(@"TVoice Call is reconnecting");
-    NSMutableDictionary *callParams = [[NSMutableDictionary alloc] init];
-    [callParams setObject:call.sid forKey:@"call_sid"];
-    if (call.from) {
-      [callParams setObject:call.from forKey:@"call_from"];
-    }
-    if (call.to) {
-      [callParams setObject:call.to forKey:@"call_to"];
-    }
-    [self sendEventWithName:@"connectionIsReconnecting" body:callParams];
-}
-
-- (void)callDidReconnect:(TVOCall *)call {
-    NSLog(@"TVoice Call reconnected");
-    NSMutableDictionary *callParams = [[NSMutableDictionary alloc] init];
-    [callParams setObject:call.sid forKey:@"call_sid"];
-    if (call.from) {
-      [callParams setObject:call.from forKey:@"call_from"];
-    }
-    if (call.to) {
-      [callParams setObject:call.to forKey:@"call_to"];
-    }
-    [self sendEventWithName:@"connectionDidReconnect" body:callParams];
-}
-
-- (void)call:(TVOCall *)call didFailToConnectWithError:(NSError *)error {
-  NSLog(@"TVoice Twilio Call failed to connect: %@", error);
-
-  self.callKitCompletionCallback(NO);
-    [self performEndCallActionWithUUID:call.uuid];
-    [self callDisconnected:call error:error];
-}
-
-- (void)call:(TVOCall *)call didDisconnectWithError:(NSError *)error {
-    if (error) {
-        NSLog(@"TVoice didDisconnectWithError: %@", error);
-    } else {
-        NSLog(@"TVoice didDisconnect");
-    }
-
-    UIDevice* device = [UIDevice currentDevice];
-    device.proximityMonitoringEnabled = NO;
-
-    if (!self.userInitiatedDisconnect) {
-        CXCallEndedReason reason = CXCallEndedReasonRemoteEnded;
-        if (error) {
-            reason = CXCallEndedReasonFailed;
-        }
-        [self.callKitProvider reportCallWithUUID:call.uuid endedAtDate:[NSDate date] reason:reason];
-    }
-    [self callDisconnected:call error:error];
-}
-
-- (void)callDisconnected:(TVOCall *)call error:(NSError *)error {
-    NSLog(@"TVoice callDisconnect");
-
-    self.userInitiatedDisconnect = YES;
-    [self performEndCallActionWithUUID:self.activeCall.uuid];
-
-    if ([call isEqual:self.activeCall]) {
-        self.activeCall = nil;
-    }
-    [self.activeCalls removeObjectForKey:call.uuid.UUIDString];
-
-    self.userInitiatedDisconnect = NO;
-
-    NSMutableDictionary *params = [[NSMutableDictionary alloc] init];
-    if (error) {
-        NSString* errMsg = [error localizedDescription];
-        if (error.localizedFailureReason) {
-          errMsg = [error localizedFailureReason];
-        }
-        [params setObject:errMsg forKey:@"err"];
-    }
-    if (call.sid) {
-        [params setObject:call.sid forKey:@"call_sid"];
-    }
-    if (call.to) {
-        [params setObject:call.to forKey:@"call_to"];
-    }
-    if (call.from) {
-        [params setObject:call.from forKey:@"call_from"];
-    }
-    if (call.state == TVOCallStateDisconnected) {
-        [params setObject:StateDisconnected forKey:@"call_state"];
-    }
-    [self sendEventWithName:@"connectionDidDisconnect" body:params];
-}
-
-#pragma mark - AVAudioSession
-- (void)toggleAudioRoute:(BOOL)toSpeaker {
-    // The mode set by the Voice SDK is "VoiceChat" so the default audio route is the built-in receiver.
-    // Use port override to switch the route.
-    self.audioDevice.block =  ^ {
-        // We will execute `kDefaultAVAudioSessionConfigurationBlock` first.
-        kTVODefaultAVAudioSessionConfigurationBlock();
-
-        // Overwrite the audio route
-        AVAudioSession *session = [AVAudioSession sharedInstance];
-        NSError *error = nil;
-        if (toSpeaker) {
-            if (![session overrideOutputAudioPort:AVAudioSessionPortOverrideSpeaker error:&error]) {
-                NSLog(@"TVoice Unable to reroute audio: %@", [error localizedDescription]);
-            }
+        if (BuildConfig.DEBUG) {
+            Voice.setLogLevel(LogLevel.DEBUG);
         } else {
-            if (![session overrideOutputAudioPort:AVAudioSessionPortOverrideNone error:&error]) {
-                NSLog(@"TVoice Unable to reroute audio: %@", [error localizedDescription]);
+            Voice.setLogLevel(LogLevel.ERROR);
+        }
+        reactContext.addActivityEventListener(this);
+        reactContext.addLifecycleEventListener(this);
+
+        eventManager = new EventManager(reactContext);
+        callNotificationManager = new CallNotificationManager();
+        proximityManager = new ProximityManager(reactContext, eventManager);
+        headsetManager = new HeadsetManager(eventManager);
+
+        /*
+         * Setup the broadcast receiver to be notified of GCM Token updates
+         * or incoming call messages in this Activity.
+         */
+        voiceBroadcastReceiver = new VoiceBroadcastReceiver();
+        registerReceiver();
+
+        TwilioVoiceModule.callNotificationMap = new HashMap<>();
+
+        audioSwitch = new AudioSwitch(reactContext);
+        availableAudioDevices = new HashMap<>();
+
+        /*
+         * Ensure the microphone permission is enabled
+         */
+        if (shouldAskForMicPermission && !checkPermissionForMicrophone()) {
+            requestPermissionForMicrophone();
+        }
+    }
+
+    @Override
+    public void onHostResume() {
+        savedVolumeControlStream = getCurrentActivity().getVolumeControlStream();
+        /*
+         * Enable changing the volume using the up/down keys during a conversation
+         */
+        getCurrentActivity().setVolumeControlStream(AudioManager.STREAM_VOICE_CALL);
+        registerReceiver();
+
+        Intent intent = getCurrentActivity().getIntent();
+        if (intent == null || intent.getAction() == null) {
+            return;
+        }
+        int currentCallInviteIntent = intent.hashCode();
+        String action = intent.getAction();
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "onHostResume(). Action: " + action + ". Intent: " + intent.getExtras());
+        }
+
+        if (action.equals(Intent.ACTION_MAIN)) {
+            return;
+        }
+
+        if (action.equals(Constants.ACTION_ACCEPT) && currentCallInviteIntent == existingCallInviteIntent) {
+            return;
+        }
+
+        if (action.equals(Constants.ACTION_INCOMING_CALL_NOTIFICATION) && currentCallInviteIntent == existingCallInviteIntent) {
+            return;
+        }
+
+        existingCallInviteIntent = currentCallInviteIntent;
+        handleStartActivityIntent(intent);
+    }
+
+    @Override
+    public void onHostPause() {
+        // the library needs to listen for events even when the app is paused
+//        unregisterReceiver();
+    }
+
+    @Override
+    public void onHostDestroy() {
+        disconnect();
+        callNotificationManager.removeHangupNotification(getReactApplicationContext());
+        /*
+         * Tear down audio device management and restore previous volume stream
+         */
+        audioSwitch.stop();
+        getCurrentActivity().setVolumeControlStream(savedVolumeControlStream);
+    }
+
+    @Override
+    public String getName() {
+        return TAG;
+    }
+
+    @Override
+    public void onNewIntent(Intent intent) {
+        // This is called only when the App is in the foreground
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "onNewIntent(). Intent: " + intent.toString());
+        }
+        handleStartActivityIntent(intent);
+    }
+
+    private RegistrationListener registrationListener() {
+        return new RegistrationListener() {
+            @Override
+            public void onRegistered(@NonNull String accessToken, @NonNull String fcmToken) {
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "RegistrationListener().onRegistered(). FCM registered.");
+                }
+                eventManager.sendEvent(EVENT_DEVICE_READY, null);
+            }
+
+            @Override
+            public void onError(@NonNull RegistrationException error,
+                                @NonNull String accessToken,
+                                @NonNull String fcmToken) {
+                Log.e(TAG, String.format("RegistrationListener().onError(). Code: %d. %s", error.getErrorCode(), error.getMessage()));
+                WritableMap params = Arguments.createMap();
+                params.putString(Constants.ERROR, error.getMessage());
+                eventManager.sendEvent(EVENT_DEVICE_NOT_READY, params);
+            }
+        };
+    }
+
+    private UnregistrationListener unregistrationListener() {
+        return new UnregistrationListener() {
+            @Override
+            public void onUnregistered(String accessToken, String fcmToken) {
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "Successfully unregistered FCM");
+                }
+            }
+
+            @Override
+            public void onError(RegistrationException error, String accessToken, String fcmToken) {
+                Log.e(TAG, String.format("Unregistration Error: %d, %s", error.getErrorCode(), error.getMessage()));
+            }
+        };
+    }
+
+    private Call.Listener callListener() {
+        return new Call.Listener() {
+            /*
+             * This callback is emitted once before the Call.Listener.onConnected() callback when
+             * the callee is being alerted of a Call. The behavior of this callback is determined by
+             * the answerOnBridge flag provided in the Dial verb of your TwiML application
+             * associated with this client. If the answerOnBridge flag is false, which is the
+             * default, the Call.Listener.onConnected() callback will be emitted immediately after
+             * Call.Listener.onRinging(). If the answerOnBridge flag is true, this will cause the
+             * call to emit the onConnected callback only after the call is answered.
+             * See answeronbridge for more details on how to use it with the Dial TwiML verb. If the
+             * twiML response contains a Say verb, then the call will emit the
+             * Call.Listener.onConnected callback immediately after Call.Listener.onRinging() is
+             * raised, irrespective of the value of answerOnBridge being set to true or false
+             */
+            @Override
+            public void onRinging(@NonNull Call call) {
+                // TODO test this with JS app
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "Call.Listener().onRinging(). Call state: " + call.getState() + ". Call: "+ call.toString());
+                }
+                WritableMap params = Arguments.createMap();
+                if (call != null) {
+                    params.putString(Constants.CALL_SID,  call.getSid());
+                    params.putString(Constants.CALL_FROM, call.getFrom());
+                }
+                eventManager.sendEvent(EVENT_CALL_STATE_RINGING, params);
+            }
+
+            @Override
+            public void onConnected(@NonNull Call call) {
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "Call.Listener().onConnected(). Call state: " + call.getState());
+                }
+                audioSwitch.activate();
+                proximityManager.startProximitySensor();
+                headsetManager.startWiredHeadsetEvent(getReactApplicationContext());
+
+                WritableMap params = Arguments.createMap();
+                params.putString(Constants.CALL_SID, call.getSid());
+                params.putString(Constants.CALL_STATE, call.getState().name());
+                params.putString(Constants.CALL_FROM, call.getFrom());
+                params.putString(Constants.CALL_TO, call.getTo());
+
+                if (activeCallInvite != null) {
+                    Map<String, String> customParameters = activeCallInvite.getCustomParameters();
+                    for (Map.Entry<String, String> entry: customParameters.entrySet()) {
+                        params.putString(entry.getKey(), entry.getValue());
+                    }
+                }
+
+                String caller = "Show call details in the app";
+                if (!toName.equals("")) {
+                    caller = toName;
+                } else if (!toNumber.equals("")) {
+                    caller = toNumber;
+                }
+                activeCall = call;
+                callNotificationManager.createHangupNotification(getReactApplicationContext(),
+                        call.getSid(), caller);
+                eventManager.sendEvent(EVENT_CONNECTION_DID_CONNECT, params);
+                activeCallInvite = null;
+            }
+
+            /**
+             * `onReconnecting()` callback is raised when a network change is detected and Call is already in `CONNECTED`
+             * `Call.State`. If the call is in `CONNECTING` or `RINGING` when network change happened the SDK will continue
+             * attempting to connect, but a reconnect event will not be raised.
+             */
+            @Override
+            public void onReconnecting(@NonNull Call call, @NonNull CallException callException) {
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "Call.Listener().onReconnecting(). Call state: " + call.getState());
+                }
+                WritableMap params = Arguments.createMap();
+                params.putString(Constants.CALL_SID, call.getSid());
+                params.putString(Constants.CALL_FROM, call.getFrom());
+                params.putString(Constants.CALL_TO, call.getTo());
+                eventManager.sendEvent(EVENT_CONNECTION_IS_RECONNECTING, params);
+            }
+
+            /**
+             * The call is successfully reconnected after reconnecting attempt.
+             */
+            @Override
+            public void onReconnected(@NonNull Call call) {
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "Call.Listener().onReconnected(). Call state: " + call.getState());
+                }
+                WritableMap params = Arguments.createMap();
+                params.putString(Constants.CALL_SID, call.getSid());
+                params.putString(Constants.CALL_FROM, call.getFrom());
+                params.putString(Constants.CALL_TO, call.getTo());
+                eventManager.sendEvent(EVENT_CONNECTION_DID_RECONNECT, params);
+            }
+
+            @Override
+            public void onDisconnected(@NonNull Call call, CallException error) {
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "Call.Listener().onDisconnected(). Call state: " + call.getState());
+                }
+                audioSwitch.deactivate();
+                proximityManager.stopProximitySensor();
+                headsetManager.stopWiredHeadsetEvent(getReactApplicationContext());
+
+                WritableMap params = Arguments.createMap();
+                String callSid = "";
+                callSid = call.getSid();
+                params.putString(Constants.CALL_SID, callSid);
+                params.putString(Constants.CALL_STATE, call.getState().name());
+                params.putString(Constants.CALL_FROM, call.getFrom());
+                params.putString(Constants.CALL_TO, call.getTo());
+                if (error != null) {
+                    Log.e(TAG, String.format("CallListener onDisconnected error: %d, %s",
+                            error.getErrorCode(), error.getMessage()));
+                    params.putString(Constants.ERROR, error.getMessage());
+                }
+                if (callSid != null && activeCall != null && activeCall.getSid() != null && activeCall.getSid().equals(callSid)) {
+                    activeCall = null;
+                }
+                eventManager.sendEvent(EVENT_CONNECTION_DID_DISCONNECT, params);
+                callNotificationManager.removeHangupNotification(getReactApplicationContext());
+                toNumber = "";
+                toName = "";
+                activeCallInvite = null;
+            }
+
+            @Override
+            public void onConnectFailure(@NonNull Call call, CallException error) {
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "Call.Listener().onConnectFailure(). Call state: " + call.getState());
+                }
+                audioSwitch.deactivate();
+                proximityManager.stopProximitySensor();
+
+                Log.e(TAG, String.format("CallListener onConnectFailure error: %d, %s",
+                        error.getErrorCode(), error.getMessage()));
+
+                WritableMap params = Arguments.createMap();
+                params.putString(Constants.ERROR, error.getMessage());
+                String callSid = "";
+                callSid = call.getSid();
+                params.putString(Constants.CALL_SID, callSid);
+                params.putString(Constants.CALL_STATE, call.getState().name());
+                params.putString(Constants.CALL_FROM, call.getFrom());
+                params.putString(Constants.CALL_TO, call.getTo());
+                if (callSid != null && activeCall != null && activeCall.getSid() != null && activeCall.getSid().equals(callSid)) {
+                    activeCall = null;
+                }
+                eventManager.sendEvent(EVENT_CONNECTION_DID_DISCONNECT, params);
+                callNotificationManager.removeHangupNotification(getReactApplicationContext());
+                toNumber = "";
+                toName = "";
+                activeCallInvite = null;
+            }
+
+            /*
+             * currentWarnings: existing quality warnings that have not been cleared yet
+             * previousWarnings: last set of warnings prior to receiving this callback
+             *
+             * Example:
+             *   - currentWarnings: { A, B }
+             *   - previousWarnings: { B, C }
+             *
+             * Newly raised warnings = currentWarnings - intersection = { A }
+             * Newly cleared warnings = previousWarnings - intersection = { C }
+             */
+            public void onCallQualityWarningsChanged(@NonNull Call call,
+                                            @NonNull Set<Call.CallQualityWarning> currentWarnings,
+                                            @NonNull Set<Call.CallQualityWarning> previousWarnings) {
+                if (previousWarnings.size() > 1) {
+                    Set<Call.CallQualityWarning> intersection = new HashSet<>(currentWarnings);
+                    currentWarnings.removeAll(previousWarnings);
+                    intersection.retainAll(previousWarnings);
+                    previousWarnings.removeAll(intersection);
+                }
+                String message = String.format(
+                        Locale.US,
+                        "Newly raised warnings: " + currentWarnings + " Clear warnings " + previousWarnings);
+                Log.e(TAG, message);
+
+                // TODO send event to JS
+            }
+        };
+    }
+
+    /**
+     * Register the Voice broadcast receiver
+     */
+    private void registerReceiver() {
+        if (isReceiverRegistered) {
+            return;
+        }
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Constants.ACTION_INCOMING_CALL);
+        intentFilter.addAction(Constants.ACTION_CANCEL_CALL);
+        LocalBroadcastManager.getInstance(getReactApplicationContext()).registerReceiver(
+                voiceBroadcastReceiver, intentFilter);
+        registerActionReceiver();
+        isReceiverRegistered = true;
+    }
+
+    private void unregisterReceiver() {
+        if (!isReceiverRegistered) {
+            return;
+        }
+        LocalBroadcastManager.getInstance(getReactApplicationContext()).unregisterReceiver(voiceBroadcastReceiver);
+        isReceiverRegistered = false;
+    }
+
+    private void removeMissedCalls() {
+        SharedPreferences sharedPref = getReactApplicationContext().getSharedPreferences(
+                Constants.PREFERENCE_KEY, Context.MODE_PRIVATE);
+        SharedPreferences.Editor sharedPrefEditor = sharedPref.edit();
+        sharedPrefEditor.putInt(Constants.MISSED_CALLS_GROUP, 0);
+        sharedPrefEditor.commit();
+    }
+
+    private class VoiceBroadcastReceiver extends BroadcastReceiver {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent == null || intent.getAction() == null) {
+                return;
+            }
+            String action = intent.getAction();
+            if (BuildConfig.DEBUG) {
+                Log.i(TAG, "VoiceBroadcastReceiver.onReceive() action: " + action + ". Intent extra: " + intent.getExtras());
+            }
+            activeCallInvite = intent.getParcelableExtra(Constants.INCOMING_CALL_INVITE);
+
+            switch (action) {
+                // when a callInvite is received in the foreground
+                case Constants.ACTION_INCOMING_CALL:
+                    handleCallInviteNotification();
+                    break;
+
+                case Constants.ACTION_CANCEL_CALL:
+                    handleCancelCall(intent);
+                    break;
+
             }
         }
-    };
-    self.audioDevice.block();
-}
-
-#pragma mark - CXProviderDelegate
-- (void)providerDidReset:(CXProvider *)provider {
-  NSLog(@"TVoice providerDidReset");
-    self.audioDevice.enabled = YES;
-}
-
-- (void)providerDidBegin:(CXProvider *)provider {
-  NSLog(@"TVoice providerDidBegin");
-}
-
-- (void)provider:(CXProvider *)provider didActivateAudioSession:(AVAudioSession *)audioSession {
-  NSLog(@"TVoice provider:didActivateAudioSession");
-    self.audioDevice.enabled = YES;
-}
-
-- (void)provider:(CXProvider *)provider didDeactivateAudioSession:(AVAudioSession *)audioSession {
-  NSLog(@"TVoice provider:didDeactivateAudioSession");
-    self.audioDevice.enabled = NO;
-}
-
-- (void)provider:(CXProvider *)provider timedOutPerformingAction:(CXAction *)action {
-  NSLog(@"TVoice provider:timedOutPerformingAction");
-}
-
-- (void)provider:(CXProvider *)provider performStartCallAction:(CXStartCallAction *)action {
-  NSLog(@"TVoice provider:performStartCallAction");
-
-    self.audioDevice.enabled = NO;
-    self.audioDevice.block();
-
-  [self.callKitProvider reportOutgoingCallWithUUID:action.callUUID startedConnectingAtDate:[NSDate date]];
-
-  __weak typeof(self) weakSelf = self;
-  [self performVoiceCallWithUUID:action.callUUID client:nil completion:^(BOOL success) {
-    __strong typeof(self) strongSelf = weakSelf;
-    if (success) {
-      [strongSelf.callKitProvider reportOutgoingCallWithUUID:action.callUUID connectedAtDate:[NSDate date]];
-      [action fulfill];
-    } else {
-      [action fail];
-    }
-  }];
-}
-
-- (void)provider:(CXProvider *)provider performAnswerCallAction:(CXAnswerCallAction *)action {
-  NSLog(@"TVoice provider:performAnswerCallAction");
-
-  self.audioDevice.enabled = NO;
-  self.audioDevice.block();
-  [self performAnswerVoiceCallWithUUID:action.callUUID completion:^(BOOL success) {
-    if (success) {
-      [action fulfill];
-    } else {
-      [action fail];
-    }
-  }];
-
-  [action fulfill];
-}
-
-- (void)provider:(CXProvider *)provider performEndCallAction:(CXEndCallAction *)action {
-  NSLog(@"TVoice provider:performEndCallAction");
-
-    TVOCallInvite *callInvite = self.activeCallInvites[action.callUUID.UUIDString];
-    TVOCall *call = self.activeCalls[action.callUUID.UUIDString];
-
-    if (callInvite) {
-        [callInvite reject];
-        [self sendEventWithName:@"callRejected" body:@"callRejected"];
-        [self.activeCallInvites removeObjectForKey:callInvite.uuid.UUIDString];
-    } else if (call) {
-        [call disconnect];
-    } else {
-        NSLog(@"TVoice Unknown UUID to perform end-call action with");
     }
 
-    self.audioDevice.enabled = YES;
-  [action fulfill];
-}
+    private void registerActionReceiver() {
 
-- (void)provider:(CXProvider *)provider performSetHeldCallAction:(CXSetHeldCallAction *)action {
-    TVOCall *call = self.activeCalls[action.callUUID.UUIDString];
-  if (call) {
-    [call setOnHold:action.isOnHold];
-    [action fulfill];
-  } else {
-    [action fail];
-  }
-}
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Constants.ACTION_HANGUP_CALL);
+        intentFilter.addAction(Constants.ACTION_CLEAR_MISSED_CALLS_COUNT);
 
-- (void)provider:(CXProvider *)provider performSetMutedCallAction:(CXSetMutedCallAction *)action {
-    TVOCall *call = self.activeCalls[action.callUUID.UUIDString];
-    if (call) {
-        [call setMuted:action.isMuted];
-        [action fulfill];
-    } else {
-        [action fail];
-    }
-}
-
-- (void)provider:(CXProvider *)provider performPlayDTMFCallAction:(CXPlayDTMFCallAction *)action {
-  TVOCall *call = self.activeCalls[action.callUUID.UUIDString];
-  if (call && call.state == TVOCallStateConnected) {
-    NSLog(@"TVoice SendDigits %@", action.digits);
-    [call sendDigits:action.digits];
-  }
-}
-
-#pragma mark - CallKit Actions
-- (void)performStartCallActionWithUUID:(NSUUID *)uuid handle:(NSString *)handle {
-  if (uuid == nil || handle == nil) {
-    return;
-  }
-
-  CXHandle *callHandle = [[CXHandle alloc] initWithType:CXHandleTypeGeneric value:handle];
-  CXStartCallAction *startCallAction = [[CXStartCallAction alloc] initWithCallUUID:uuid handle:callHandle];
-  CXTransaction *transaction = [[CXTransaction alloc] initWithAction:startCallAction];
-
-  [self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
-    if (error) {
-      NSLog(@"TVoice StartCallAction transaction request failed: %@", [error localizedDescription]);
-    } else {
-      NSLog(@"TVoice StartCallAction transaction request successful");
-
-      CXCallUpdate *callUpdate = [[CXCallUpdate alloc] init];
-      callUpdate.remoteHandle = callHandle;
-      callUpdate.supportsDTMF = YES;
-      callUpdate.supportsHolding = YES;
-      callUpdate.supportsGrouping = NO;
-      callUpdate.supportsUngrouping = NO;
-      callUpdate.hasVideo = NO;
-
-      [self.callKitProvider reportCallWithUUID:uuid updated:callUpdate];
-    }
-  }];
-}
-
-- (void)reportIncomingCallFrom:(NSString *)from withUUID:(NSUUID *)uuid {
-  CXHandleType type = [[from substringToIndex:1] isEqual:@"+"] ? CXHandleTypePhoneNumber : CXHandleTypeGeneric;
-  // lets replace 'client:' with ''
-  CXHandle *callHandle = [[CXHandle alloc] initWithType:type value:[from stringByReplacingOccurrencesOfString:@"client:" withString:@""]];
-
-  CXCallUpdate *callUpdate = [[CXCallUpdate alloc] init];
-  callUpdate.remoteHandle = callHandle;
-  callUpdate.supportsDTMF = YES;
-  callUpdate.supportsHolding = YES;
-  callUpdate.supportsGrouping = NO;
-  callUpdate.supportsUngrouping = NO;
-  callUpdate.hasVideo = NO;
-
-  [self.callKitProvider reportNewIncomingCallWithUUID:uuid update:callUpdate completion:^(NSError *error) {
-    if (!error) {
-      NSLog(@"TVoice Incoming call successfully reported");
-    } else {
-      NSLog(@"TVoice Failed to report incoming call successfully: %@.", [error localizedDescription]);
-    }
-  }];
-}
-
-- (void)performEndCallActionWithUUID:(NSUUID *)uuid {
-  if (uuid == nil) {
-    return;
-  }
-
-  CXEndCallAction *endCallAction = [[CXEndCallAction alloc] initWithCallUUID:uuid];
-  CXTransaction *transaction = [[CXTransaction alloc] initWithAction:endCallAction];
-
-  [self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
-      if (error) {
-          NSLog(@"TVoice EndCallAction transaction request failed: %@", [error localizedDescription]);
-      }
-      else {
-          NSLog(@"TVoice EndCallAction transaction request successful");
-      }
-  }];
-}
-
-- (void)performVoiceCallWithUUID:(NSUUID *)uuid
-                          client:(NSString *)client
-                      completion:(void(^)(BOOL success))completionHandler {
-                          __weak typeof(self) weakSelf = self;
-    TVOConnectOptions *connectOptions = [TVOConnectOptions optionsWithAccessToken:[self fetchAccessToken] block:^(TVOConnectOptionsBuilder *builder) {
-      __strong typeof(self) strongSelf = weakSelf;
-      builder.params = strongSelf->_callParams;
-      builder.uuid = uuid;
-    }];
-    TVOCall *call = [TwilioVoice connectWithOptions:connectOptions delegate:self];
-    if (call) {
-      self.activeCall = call;
-      self.activeCalls[call.uuid.UUIDString] = call;
-    }
-    self.callKitCompletionCallback = completionHandler;
-}
-
-- (void)performAnswerVoiceCallWithUUID:(NSUUID *)uuid
-                            completion:(void(^)(BOOL success))completionHandler {
-
-    TVOCallInvite *callInvite = self.activeCallInvites[uuid.UUIDString];
-    NSAssert(callInvite, @"No CallInvite matches the UUID");
-    TVOAcceptOptions *acceptOptions = [TVOAcceptOptions optionsWithCallInvite:callInvite block:^(TVOAcceptOptionsBuilder *builder) {
-        builder.uuid = callInvite.uuid;
-    }];
-
-    TVOCall *call = [callInvite acceptWithOptions:acceptOptions delegate:self];
-
-    if (!call) {
-        completionHandler(NO);
-    } else {
-        self.callKitCompletionCallback = completionHandler;
-        self.activeCall = call;
-        self.activeCalls[call.uuid.UUIDString] = call;
+        getReactApplicationContext().registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "BroadcastReceiver.onReceive() action: " + action);
+                }
+                switch (action) {
+                    case Constants.ACTION_HANGUP_CALL:
+                        disconnect();
+                        break;
+                    case Constants.ACTION_CLEAR_MISSED_CALLS_COUNT:
+                        removeMissedCalls();
+                        break;
+                }
+            }
+        }, intentFilter);
     }
 
-    [self.activeCallInvites removeObjectForKey:callInvite.uuid.UUIDString];
+    // removed @Override temporarily just to get it working on different versions of RN
+    public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
+        onActivityResult(requestCode, resultCode, data);
+    }
 
-    if ([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion < 13) {
-        [self incomingPushHandled];
+    // removed @Override temporarily just to get it working on different versions of RN
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        // Ignored, required to implement ActivityEventListener for RN 0.33
+    }
+
+    private void handleStartActivityIntent(Intent intent) {
+        if (intent == null || intent.getAction() == null) {
+            return;
+        }
+        String action = intent.getAction();
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "handleStartActivityIntent() action: " + action);
+        }
+        activeCallInvite = intent.getParcelableExtra(Constants.INCOMING_CALL_INVITE);
+
+        switch (action) {
+            case Constants.ACTION_INCOMING_CALL_NOTIFICATION:
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "ACTION_INCOMING_CALL_NOTIFICATION handleStartActivityIntent");
+                }
+                WritableMap params = Arguments.createMap();
+                params.putString(Constants.CALL_SID, activeCallInvite.getCallSid());
+                params.putString(Constants.CALL_FROM, activeCallInvite.getFrom());
+                params.putString(Constants.CALL_TO, activeCallInvite.getTo());
+
+                if (activeCallInvite != null) {
+                    Map<String, String> customParameters = activeCallInvite.getCustomParameters();
+                    for (Map.Entry<String, String> entry: customParameters.entrySet()) {
+                        params.putString(entry.getKey(), entry.getValue());
+                    }
+                }
+
+                eventManager.sendEvent(EVENT_DEVICE_DID_RECEIVE_INCOMING, params);
+                break;
+
+            case Constants.ACTION_MISSED_CALL:
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "ACTION_MISSED_CALL handleStartActivityIntent");
+                }
+                removeMissedCalls();
+                break;
+
+            case Constants.ACTION_CLEAR_MISSED_CALLS_COUNT:
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "ACTION_CLEAR_MISSED_CALLS_COUNT handleStartActivityIntent");
+                }
+                removeMissedCalls();
+                break;
+
+            case Constants.ACTION_FCM_TOKEN:
+                registerForCallInvites();
+                break;
+
+            case Constants.ACTION_ACCEPT:
+                acceptFromIntent(intent);
+                break;
+
+            case Constants.ACTION_OPEN_CALL_IN_PROGRESS:
+                // the notification already brings the activity to the top
+                if (activeCall == null) {
+                    callNotificationManager.removeHangupNotification(getReactApplicationContext());
+                }
+                break;
+
+            default:
+                Log.e(TAG, "received broadcast unhandled action " + action);
+                break;
+        }
+    }
+
+    private void handleCallInviteNotification() {
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "handleCallInviteNotification()");
+        }
+        if (activeCallInvite == null) {
+            Log.e(TAG, "NO active call invite");
+            return;
+        }
+        SoundPoolManager.getInstance(getReactApplicationContext()).playRinging();
+
+        Log.e(TAG, "NO active call invite");
+
+        WritableMap params = Arguments.createMap();
+        params.putString(Constants.CALL_SID, activeCallInvite.getCallSid());
+        params.putString(Constants.CALL_FROM, activeCallInvite.getFrom());
+        params.putString(Constants.CALL_TO, activeCallInvite.getTo());
+
+        if (activeCallInvite != null) {
+            Map<String, String> customParameters = activeCallInvite.getCustomParameters();
+            for (Map.Entry<String, String> entry: customParameters.entrySet()) {
+                params.putString(entry.getKey(), entry.getValue());
+            }
+        }
+
+        String verificationStatus = Constants.CALLER_VERIFICATION_UNKNOWN;
+        if (activeCallInvite.getCallerInfo().isVerified() != null) {
+            verificationStatus = activeCallInvite.getCallerInfo().isVerified() == true
+                    ? Constants.CALLER_VERIFICATION_VERIFIED
+                    : Constants.CALLER_VERIFICATION_UNVERIFIED
+            ;
+        }
+        params.putString(Constants.CALLER_VERIFICATION_STATUS, verificationStatus);
+        eventManager.sendEvent(EVENT_DEVICE_DID_RECEIVE_INCOMING, params);
+    }
+
+    private void handleCancelCall(Intent intent) {
+        CancelledCallInvite cancelledCallInvite = intent.getParcelableExtra(Constants.CANCELLED_CALL_INVITE);
+
+        ReactApplicationContext ctx = getReactApplicationContext();
+        SoundPoolManager.getInstance(ctx).stopRinging();
+        callNotificationManager.createMissedCallNotification(
+                getReactApplicationContext(),
+                cancelledCallInvite.getCallSid(),
+                cancelledCallInvite.getFrom()
+        );
+
+        WritableMap params = Arguments.createMap();
+
+        // TODO check whether the params should be passed anyway
+        int appImportance = callNotificationManager.getApplicationImportance(ctx);
+        if (appImportance <= RunningAppProcessInfo.IMPORTANCE_VISIBLE) {
+            params.putString(Constants.CALL_SID, cancelledCallInvite.getCallSid());
+            params.putString(Constants.CALL_FROM, cancelledCallInvite.getFrom());
+            params.putString(Constants.CALL_TO, cancelledCallInvite.getTo());
+            String cancelledCallInviteErr = intent.getStringExtra(Constants.CANCELLED_CALL_INVITE_EXCEPTION);
+            // pass this to the event even though in v5.0.2 it is always "Call Cancelled"
+            if (cancelledCallInviteErr != null) {
+                params.putString(Constants.ERROR, cancelledCallInviteErr);
+            }
+        }
+        Log.e(TAG, "TODO handle custom parameters - handleCancelCall");
+        // TODO handle custom parameters
+        eventManager.sendEvent(EVENT_CALL_INVITE_CANCELLED, params);
+    }
+
+    @ReactMethod
+    public void initWithAccessToken(final String accessToken, Promise promise) {
+        if (accessToken.equals("")) {
+            promise.reject(new JSApplicationIllegalArgumentException("Invalid access token"));
+            return;
+        }
+
+        if(!checkPermissionForMicrophone()) {
+            promise.reject(new AssertionException("Allow microphone permission"));
+            return;
+        }
+
+        TwilioVoiceModule.this.accessToken = accessToken;
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "initWithAccessToken()");
+        }
+        registerForCallInvites();
+        WritableMap params = Arguments.createMap();
+        params.putBoolean("initialized", true);
+        promise.resolve(params);
+        startAudioSwitch();
+
+        Intent intent = getCurrentActivity().getIntent();
+
+        this.getActivityLaunchOption(intent);
+    }
+
+    /*
+     * Register your FCM token with Twilio to receive incoming call invites
+     *
+     * If a valid google-services.json has not been provided or the FirebaseInstanceId has not been
+     * initialized the fcmToken will be null.
+     *
+     */
+    private void registerForCallInvites() {
+        String fcmToken = FirebaseInstanceId.getInstance().getToken();
+        if (fcmToken == null) {
+            return;
+        }
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "Registering with FCM");
+        }
+        Voice.register(accessToken, Voice.RegistrationChannel.FCM, fcmToken, registrationListener);
+    }
+
+    /*
+     * Unregister your android device with Twilio
+     *
+     */
+
+    @ReactMethod  //
+    public void unregister(Promise promise) {
+        unregisterForCallInvites();
+        promise.resolve(true);
+    }
+
+    private void unregisterForCallInvites() {
+        FirebaseInstanceId.getInstance().getInstanceId()
+                .addOnCompleteListener(new OnCompleteListener<InstanceIdResult>() {
+                    @Override
+                    public void onComplete(@NonNull Task<InstanceIdResult> task) {
+                        if (!task.isSuccessful()) {
+                            Log.w(TAG, "FCM unregistration failed", task.getException());
+                            return;
+                        }
+
+                        // Get new Instance ID token
+                        String fcmToken = task.getResult().getToken();
+                        if (fcmToken != null) {
+                            if (BuildConfig.DEBUG) {
+                                Log.i(TAG, "Unregistering with FCM");
+                            }
+                            Voice.unregister(accessToken, Voice.RegistrationChannel.FCM, fcmToken, unregistrationListener);
+                        }
+                    }
+                });
+    }
+
+    public void acceptFromIntent(Intent intent) {
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "acceptFromIntent()");
+        }
+        activeCallInvite = intent.getParcelableExtra(Constants.INCOMING_CALL_INVITE);
+        if (activeCallInvite == null) {
+            eventManager.sendEvent(EVENT_CALL_INVITE_CANCELLED, null);
+            return;
+        }
+
+        SoundPoolManager.getInstance(getReactApplicationContext()).stopRinging();
+
+        AcceptOptions acceptOptions = new AcceptOptions.Builder()
+                .enableDscp(true)
+                .build();
+        activeCallInvite.accept(getReactApplicationContext(), acceptOptions, callListener);
+    }
+
+    @ReactMethod
+    public void accept() {
+        SoundPoolManager.getInstance(getReactApplicationContext()).stopRinging();
+        if (activeCallInvite == null) {
+            eventManager.sendEvent(EVENT_CALL_INVITE_CANCELLED, null);
+            return;
+        }
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "accept()");
+        }
+
+        Intent intent = new Intent(getReactApplicationContext(), IncomingCallNotificationService.class);
+        intent.setAction(Constants.ACTION_JS_ANSWER);
+
+        getReactApplicationContext().startService(intent);
+
+        AcceptOptions acceptOptions = new AcceptOptions.Builder()
+                .enableDscp(true)
+                .build();
+        activeCallInvite.accept(getReactApplicationContext(), acceptOptions, callListener);
+    }
+
+    @ReactMethod
+    public void reject() {
+        SoundPoolManager.getInstance(getReactApplicationContext()).stopRinging();
+        WritableMap params = Arguments.createMap();
+        if (activeCallInvite != null) {
+            params.putString(Constants.CALL_SID,   activeCallInvite.getCallSid());
+            params.putString(Constants.CALL_FROM,  activeCallInvite.getFrom());
+            params.putString(Constants.CALL_TO,    activeCallInvite.getTo());
+            activeCallInvite.reject(getReactApplicationContext());
+        }
+
+        Intent intent = new Intent(getReactApplicationContext(), IncomingCallNotificationService.class);
+        intent.setAction(Constants.ACTION_JS_REJECT);
+
+        getReactApplicationContext().startService(intent);
+
+        eventManager.sendEvent(EVENT_CALL_INVITE_CANCELLED, params);
+        activeCallInvite = null;
+    }
+
+    @ReactMethod
+    public void ignore() {
+        SoundPoolManager.getInstance(getReactApplicationContext()).stopRinging();
+    }
+
+    @ReactMethod
+    public void connect(ReadableMap params) {
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "connect(). Params: "+params);
+        }
+        WritableMap errParams = Arguments.createMap();
+        if (accessToken == null) {
+            errParams.putString(Constants.ERROR, "Invalid access token");
+            eventManager.sendEvent(EVENT_DEVICE_NOT_READY, errParams);
+            return;
+        }
+        if (params == null) {
+            errParams.putString(Constants.ERROR, "Invalid parameters");
+            eventManager.sendEvent(EVENT_CONNECTION_DID_DISCONNECT, errParams);
+            return;
+        } else if (!params.hasKey("To")) {
+            errParams.putString(Constants.ERROR, "Invalid To parameter");
+            eventManager.sendEvent(EVENT_CONNECTION_DID_DISCONNECT, errParams);
+            return;
+        }
+        toNumber = params.getString("To");
+        if (params.hasKey("ToName")) {
+            toName = params.getString("ToName");
+        }
+
+        twiMLParams.clear();
+
+        ReadableMapKeySetIterator iterator = params.keySetIterator();
+        while (iterator.hasNextKey()) {
+            String key = iterator.nextKey();
+            ReadableType readableType = params.getType(key);
+            switch (readableType) {
+                case Null:
+                    twiMLParams.put(key, "");
+                    break;
+                case Boolean:
+                    twiMLParams.put(key, String.valueOf(params.getBoolean(key)));
+                    break;
+                case Number:
+                    // Can be int or double.
+                    twiMLParams.put(key, String.valueOf(params.getDouble(key)));
+                    break;
+                case String:
+                    twiMLParams.put(key, params.getString(key));
+                    break;
+                default:
+                    Log.e(TAG, "Could not convert key: " + key + ". ReadableType: "+ readableType.toString());
+                    break;
+            }
+        }
+
+        ConnectOptions connectOptions = new ConnectOptions.Builder(accessToken)
+                .enableDscp(true)
+                .params(twiMLParams)
+                .build();
+
+        activeCall = Voice.connect(getReactApplicationContext(), connectOptions, callListener);
+    }
+
+    @ReactMethod
+    public void disconnect() {
+        if (activeCall != null) {
+            activeCall.disconnect();
+            activeCall = null;
+        }
+    }
+
+    @ReactMethod
+    public void setMuted(Boolean value) {
+        if (activeCall != null) {
+            activeCall.mute(value);
+        }
+    }
+
+    @ReactMethod
+    public void sendDigits(String digits) {
+        if (activeCall != null) {
+            activeCall.sendDigits(digits);
+        }
+    }
+
+    @ReactMethod
+    public void getActiveCall(Promise promise) {
+        if (activeCall == null) {
+            promise.resolve(null);
+            return;
+        }
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "getActiveCall(). Active call state: " + activeCall.getState());
+        }
+        WritableMap params = Arguments.createMap();
+        String toNum = activeCall.getTo();
+        if (toNum == null) {
+            toNum = toNumber;
+        }
+        params.putString(Constants.CALL_SID,   activeCall.getSid());
+        params.putString(Constants.CALL_FROM,  activeCall.getFrom());
+        params.putString(Constants.CALL_TO,    toNum);
+        params.putString(Constants.CALL_STATE, activeCall.getState().name());
+        promise.resolve(params);
+    }
+
+    @ReactMethod
+    public void getCallInvite(Promise promise) {
+        if (activeCallInvite == null) {
+            promise.resolve(null);
+            return;
+        }
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "getCallInvite(). Call invite: " + activeCallInvite);
+        }
+        WritableMap params = Arguments.createMap();
+        params.putString(Constants.CALL_SID,   activeCallInvite.getCallSid());
+        params.putString(Constants.CALL_FROM,  activeCallInvite.getFrom());
+        params.putString(Constants.CALL_TO,    activeCallInvite.getTo());
+        promise.resolve(params);
+    }
+
+    @ReactMethod
+    public void setOnHold(Boolean value) {
+        if (activeCall != null) {
+            activeCall.hold(value);
+        }
+    }
+
+    @ReactMethod
+    public void getAudioDevices(Promise promise) {
+        List<AudioDevice> availableAudioDevices = audioSwitch.getAvailableAudioDevices();
+
+        WritableMap devices = Arguments.createMap();
+        for (AudioDevice a : availableAudioDevices) {
+            devices.putBoolean(a.getName(), selectedAudioDevice.getName().equals(a.getName()));
+        }
+        promise.resolve(devices);
+    }
+
+    @ReactMethod
+    public void getSelectedAudioDevice(Promise promise) {
+        WritableMap device = Arguments.createMap();
+        device.putString(Constants.SELECTED_AUDIO_DEVICE, selectedAudioDevice.getName());
+        promise.resolve(device);
+    }
+
+    @ReactMethod
+    public void selectAudioDevice(String name) {
+        AudioDevice selected = availableAudioDevices.get(name);
+        if (selected == null) {
+            return;
+        }
+        audioSwitch.selectDevice(selected);
+    }
+
+    private void startAudioSwitch() {
+        audioSwitch.start((devices, device) -> {
+            selectedAudioDevice = device;
+            WritableMap params = Arguments.createMap();
+            for (AudioDevice a : devices) {
+                params.putBoolean(a.getName(), device.getName().equals(a.getName()));
+                availableAudioDevices.put(a.getName(), a);
+            }
+            eventManager.sendEvent(EVENT_AUDIO_DEVICES_UPDATED, params);
+            return Unit.INSTANCE;
+        });
+    }
+
+    private boolean checkPermissionForMicrophone() {
+        int resultMic = ContextCompat.checkSelfPermission(getReactApplicationContext(), Manifest.permission.RECORD_AUDIO);
+        return resultMic == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestPermissionForMicrophone() {
+        if (getCurrentActivity() == null) {
+            return;
+        }
+        if (ActivityCompat.shouldShowRequestPermissionRationale(getCurrentActivity(), Manifest.permission.RECORD_AUDIO)) {
+            // TODO
+        } else {
+            ActivityCompat.requestPermissions(getCurrentActivity(), new String[]{Manifest.permission.RECORD_AUDIO}, MIC_PERMISSION_REQUEST_CODE);
+        }
+    }
+
+    public static Bundle getActivityLaunchOption(Intent intent) {
+        Bundle initialProperties = new Bundle();
+        if (intent == null || intent.getAction() == null) {
+            return initialProperties;
+        }
+
+        Bundle callBundle = new Bundle();
+        switch (intent.getAction()) {
+            case Constants.ACTION_INCOMING_CALL_NOTIFICATION:
+                callBundle.putString(Constants.CALL_SID, intent.getStringExtra(Constants.CALL_SID));
+                callBundle.putString(Constants.CALL_FROM, intent.getStringExtra(Constants.CALL_FROM));
+                callBundle.putString(Constants.CALL_TO, intent.getStringExtra(Constants.CALL_TO));
+                initialProperties.putBundle(Constants.CALL_INVITE_KEY, callBundle);
+                break;
+
+            case Constants.ACTION_ACCEPT:
+                callBundle.putString(Constants.CALL_SID, intent.getStringExtra(Constants.CALL_SID));
+                callBundle.putString(Constants.CALL_FROM, intent.getStringExtra(Constants.CALL_FROM));
+                callBundle.putString(Constants.CALL_TO, intent.getStringExtra(Constants.CALL_TO));
+                callBundle.putString(Constants.CALL_STATE, Constants.CALL_STATE_CONNECTED);
+                initialProperties.putBundle(Constants.CALL_KEY, callBundle);
+                break;
+        }
+        return initialProperties;
     }
 }
-
-- (void)handleAppTerminateNotification {
-  NSLog(@"TVoice handleAppTerminateNotification called");
-
-  if (self.activeCall) {
-    NSLog(@"TVoice handleAppTerminateNotification disconnecting an active call");
-    [self.activeCall disconnect];
-  }
-}
-
-@end

@@ -93,14 +93,14 @@ RCT_EXPORT_METHOD(configureCallKit: (NSDictionary *)params) {
     _callKitProvider = [[CXProvider alloc] initWithConfiguration:configuration];
     [_callKitProvider setDelegate:self queue:nil];
 
-    NSLog(@"CallKit Initialized");
+    NSLog(@"TVoice CallKit Initialized");
 
     self.callKitCallController = [[CXCallController alloc] init];
   }
 }
 
 RCT_EXPORT_METHOD(connect: (NSDictionary *)params) {
-  NSLog(@"Calling phone number %@", [params valueForKey:@"To"]);
+  NSLog(@"TVoice Calling phone number %@", [params valueForKey:@"To"]);
 
   UIDevice* device = [UIDevice currentDevice];
   device.proximityMonitoringEnabled = YES;
@@ -116,18 +116,18 @@ RCT_EXPORT_METHOD(connect: (NSDictionary *)params) {
 }
 
 RCT_EXPORT_METHOD(disconnect) {
-    NSLog(@"Disconnecting call. UUID %@", self.activeCall.uuid.UUIDString);
+    NSLog(@"TVoice Disconnecting call. UUID %@", self.activeCall.uuid.UUIDString);
     self.userInitiatedDisconnect = YES;
     [self performEndCallActionWithUUID:self.activeCall.uuid];
 }
 
 RCT_EXPORT_METHOD(setMuted: (BOOL *)muted) {
-  NSLog(@"Mute/UnMute call");
+  NSLog(@"TVoice Mute/UnMute call");
     self.activeCall.muted = muted ? YES : NO;
 }
 
 RCT_EXPORT_METHOD(setOnHold: (BOOL *)isOnHold) {
-  NSLog(@"Hold/Unhold call");
+  NSLog(@"TVoice Hold/Unhold call");
     self.activeCall.onHold = isOnHold ? YES : NO;
 }
 
@@ -137,13 +137,13 @@ RCT_EXPORT_METHOD(setSpeakerPhone: (BOOL *)speaker) {
 
 RCT_EXPORT_METHOD(sendDigits: (NSString *)digits) {
   if (self.activeCall && self.activeCall.state == TVOCallStateConnected) {
-    NSLog(@"SendDigits %@", digits);
+    NSLog(@"TVoice SendDigits %@", digits);
     [self.activeCall sendDigits:digits];
   }
 }
 
 RCT_EXPORT_METHOD(unregister) {
-  NSLog(@"unregister");
+  NSLog(@"TVoice unregister");
   NSString *accessToken = [self fetchAccessToken];
   NSString *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
   if ([cachedDeviceToken length] > 0) {
@@ -151,10 +151,10 @@ RCT_EXPORT_METHOD(unregister) {
                                  deviceToken:cachedDeviceToken
                                   completion:^(NSError * _Nullable error) {
                                     if (error) {
-                                        NSLog(@"An error occurred while unregistering: %@", [error localizedDescription]);
+                                        NSLog(@"TVoice An error occurred while unregistering: %@", [error localizedDescription]);
                                     } else {
                                         [[NSUserDefaults standardUserDefaults] setValue:@"" forKey:kCachedDeviceToken];
-                                        NSLog(@"Successfully unregistered for VoIP push notifications.");
+                                        NSLog(@"TVoice Successfully unregistered for VoIP push notifications.");
                                     }
                                 }];
   }
@@ -224,7 +224,7 @@ RCT_REMAP_METHOD(getCallInvite,
 
 #pragma mark - PKPushRegistryDelegate
 - (void)pushRegistry:(PKPushRegistry *)registry didUpdatePushCredentials:(PKPushCredentials *)credentials forType:(NSString *)type {
-  NSLog(@"pushRegistry:didUpdatePushCredentials:forType");
+  NSLog(@"TVoice pushRegistry:didUpdatePushCredentials:forType");
 
   if ([type isEqualToString:PKPushTypeVoIP]) {
     const unsigned *tokenBytes = [credentials.token bytes];
@@ -244,14 +244,14 @@ RCT_REMAP_METHOD(getCallInvite,
                                  deviceToken:cachedDeviceToken
                                   completion:^(NSError *error) {
              if (error) {
-                 NSLog(@"An error occurred while registering: %@", [error localizedDescription]);
+                 NSLog(@"TVoice An error occurred while registering: %@", [error localizedDescription]);
                  NSMutableDictionary *params = [[NSMutableDictionary alloc] init];
                  [params setObject:[error localizedDescription] forKey:@"err"];
 
                  [self sendEventWithName:@"deviceNotReady" body:params];
              }
              else {
-                 NSLog(@"Successfully registered for VoIP push notifications.");
+                 NSLog(@"TVoice Successfully registered for VoIP push notifications.");
 
                  /*
                   * Save the device token after successfully registered.
@@ -267,7 +267,7 @@ RCT_REMAP_METHOD(getCallInvite,
 }
 
 - (void)pushRegistry:(PKPushRegistry *)registry didInvalidatePushTokenForType:(PKPushType)type {
-  NSLog(@"pushRegistry:didInvalidatePushTokenForType");
+  NSLog(@"TVoice pushRegistry:didInvalidatePushTokenForType");
 
   if ([type isEqualToString:PKPushTypeVoIP]) {
     NSString *accessToken = [self fetchAccessToken];
@@ -278,10 +278,10 @@ RCT_REMAP_METHOD(getCallInvite,
                                                 deviceToken:cachedDeviceToken
                                                  completion:^(NSError * _Nullable error) {
                                                    if (error) {
-                                                     NSLog(@"An error occurred while unregistering: %@", [error localizedDescription]);
+                                                     NSLog(@"TVoice An error occurred while unregistering: %@", [error localizedDescription]);
                                                    } else {
                                                      [[NSUserDefaults standardUserDefaults] setValue:@"" forKey:kCachedDeviceToken];
-                                                     NSLog(@"Successfully unregistered for VoIP push notifications.");
+                                                     NSLog(@"TVoice Successfully unregistered for VoIP push notifications.");
                                                    }
                                                  }];
     }
@@ -293,11 +293,11 @@ RCT_REMAP_METHOD(getCallInvite,
 * your application is targeting iOS 11. According to the docs, this delegate method is deprecated by Apple.
 */
 - (void)pushRegistry:(PKPushRegistry *)registry didReceiveIncomingPushWithPayload:(PKPushPayload *)payload forType:(NSString *)type {
-  NSLog(@"pushRegistry:didReceiveIncomingPushWithPayload:forType");
+  NSLog(@"TVoice pushRegistry:didReceiveIncomingPushWithPayload:forType");
   if ([type isEqualToString:PKPushTypeVoIP]) {
       // The Voice SDK will use main queue to invoke `cancelledCallInviteReceived:error` when delegate queue is not passed
       if (![TwilioVoice handleNotification:payload.dictionaryPayload delegate:self delegateQueue: nil]) {
-          NSLog(@"This is not a valid Twilio Voice notification.");
+          NSLog(@"TVoice This is not a valid Twilio Voice notification.");
       }
   }
 }
@@ -310,7 +310,7 @@ RCT_REMAP_METHOD(getCallInvite,
 didReceiveIncomingPushWithPayload:(PKPushPayload *)payload
              forType:(PKPushType)type
 withCompletionHandler:(void (^)(void))completion {
-    NSLog(@"pushRegistry:didReceiveIncomingPushWithPayload:forType:withCompletionHandler");
+    NSLog(@"TVoice pushRegistry:didReceiveIncomingPushWithPayload:forType:withCompletionHandler");
 
     // Save for later when the notification is properly handled.
     self.incomingPushCompletionCallback = completion;
@@ -319,7 +319,7 @@ withCompletionHandler:(void (^)(void))completion {
     if ([type isEqualToString:PKPushTypeVoIP]) {
         // The Voice SDK will use main queue to invoke `cancelledCallInviteReceived:error` when delegate queue is not passed
         if (![TwilioVoice handleNotification:payload.dictionaryPayload delegate:self delegateQueue: nil]) {
-            NSLog(@"This is not a valid Twilio Voice notification.");
+            NSLog(@"TVoice This is not a valid Twilio Voice notification.");
         }
     }
     if ([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion < 13) {
@@ -347,7 +347,7 @@ withCompletionHandler:(void (^)(void))completion {
      * Calling `[TwilioVoice handleNotification:delegate:]` will synchronously process your notification payload and
      * provide you a `TVOCallInvite` object. Report the incoming call to CallKit upon receiving this callback.
      */
-    NSLog(@"callInviteReceived");
+    NSLog(@"TVoice callInviteReceived");
     NSString *from = @"Unknown";
     if (callInvite.from) {
         from = [callInvite.from stringByReplacingOccurrencesOfString:@"client:" withString:@""];
@@ -385,7 +385,7 @@ withCompletionHandler:(void (^)(void))completion {
     * with a `TVOCancelledCallInvite` if the caller hangs up or the client encounters any other error before the called
     * party could answer or reject the call.
     */
-    NSLog(@"cancelledCallInviteReceived");
+    NSLog(@"TVoice cancelledCallInviteReceived");
     TVOCallInvite *callInvite;
     for (NSString *activeCallInviteId in self.activeCallInvites) {
         TVOCallInvite *activeCallInvite = [self.activeCallInvites objectForKey:activeCallInviteId];
@@ -417,7 +417,7 @@ withCompletionHandler:(void (^)(void))completion {
     * with a `TVOCancelledCallInvite` if the caller hangs up or the client encounters any other error before the called
     * party could answer or reject the call.
     */
-    NSLog(@"cancelledCallInviteReceived with error %@", error);
+    NSLog(@"TVoice cancelledCallInviteReceived with error %@", error);
     TVOCallInvite *callInvite;
     for (NSString *activeCallInviteId in self.activeCallInvites) {
         TVOCallInvite *activeCallInvite = [self.activeCallInvites objectForKey:activeCallInviteId];
@@ -443,12 +443,12 @@ withCompletionHandler:(void (^)(void))completion {
 }
 
 - (void)notificationError:(NSError *)error {
-  NSLog(@"notificationError: %@", [error localizedDescription]);
+  NSLog(@"TVoice notificationError: %@", [error localizedDescription]);
 }
 
 #pragma mark - TVOCallDelegate
 - (void)callDidStartRinging:(TVOCall *)call {
-    NSLog(@"callDidStartRinging");
+    NSLog(@"TVoice callDidStartRinging");
 
     /*
      When [answerOnBridge](https://www.twilio.com/docs/voice/twiml/dial#answeronbridge) is enabled in the
@@ -466,7 +466,7 @@ withCompletionHandler:(void (^)(void))completion {
 
 #pragma mark - TVOCallDelegate
 - (void)callDidConnect:(TVOCall *)call {
-     NSLog(@"callDidConnect");
+     NSLog(@"TVoice callDidConnect");
   self.callKitCompletionCallback(YES);
 
   NSMutableDictionary *callParams = [[NSMutableDictionary alloc] init];
@@ -483,11 +483,12 @@ withCompletionHandler:(void (^)(void))completion {
   if (call.to) {
     [callParams setObject:call.to forKey:@"call_to"];
   }
+
   [self sendEventWithName:@"connectionDidConnect" body:callParams];
 }
 
 - (void)call:(TVOCall *)call isReconnectingWithError:(NSError *)error {
-    NSLog(@"Call is reconnecting");
+    NSLog(@"TVoice Call is reconnecting");
     NSMutableDictionary *callParams = [[NSMutableDictionary alloc] init];
     [callParams setObject:call.sid forKey:@"call_sid"];
     if (call.from) {
@@ -500,7 +501,7 @@ withCompletionHandler:(void (^)(void))completion {
 }
 
 - (void)callDidReconnect:(TVOCall *)call {
-    NSLog(@"Call reconnected");
+    NSLog(@"TVoice Call reconnected");
     NSMutableDictionary *callParams = [[NSMutableDictionary alloc] init];
     [callParams setObject:call.sid forKey:@"call_sid"];
     if (call.from) {
@@ -513,7 +514,7 @@ withCompletionHandler:(void (^)(void))completion {
 }
 
 - (void)call:(TVOCall *)call didFailToConnectWithError:(NSError *)error {
-  NSLog(@"Call failed to connect: %@", error);
+  NSLog(@"TVoice Twilio Call failed to connect: %@", error);
 
   self.callKitCompletionCallback(NO);
     [self performEndCallActionWithUUID:call.uuid];
@@ -522,9 +523,9 @@ withCompletionHandler:(void (^)(void))completion {
 
 - (void)call:(TVOCall *)call didDisconnectWithError:(NSError *)error {
     if (error) {
-        NSLog(@"didDisconnectWithError: %@", error);
+        NSLog(@"TVoice didDisconnectWithError: %@", error);
     } else {
-        NSLog(@"didDisconnect");
+        NSLog(@"TVoice didDisconnect");
     }
 
     UIDevice* device = [UIDevice currentDevice];
@@ -541,7 +542,11 @@ withCompletionHandler:(void (^)(void))completion {
 }
 
 - (void)callDisconnected:(TVOCall *)call error:(NSError *)error {
-    NSLog(@"callDisconnect");
+    NSLog(@"TVoice callDisconnect");
+
+    self.userInitiatedDisconnect = YES;
+    [self performEndCallActionWithUUID:self.activeCall.uuid];
+
     if ([call isEqual:self.activeCall]) {
         self.activeCall = nil;
     }
@@ -585,11 +590,11 @@ withCompletionHandler:(void (^)(void))completion {
         NSError *error = nil;
         if (toSpeaker) {
             if (![session overrideOutputAudioPort:AVAudioSessionPortOverrideSpeaker error:&error]) {
-                NSLog(@"Unable to reroute audio: %@", [error localizedDescription]);
+                NSLog(@"TVoice Unable to reroute audio: %@", [error localizedDescription]);
             }
         } else {
             if (![session overrideOutputAudioPort:AVAudioSessionPortOverrideNone error:&error]) {
-                NSLog(@"Unable to reroute audio: %@", [error localizedDescription]);
+                NSLog(@"TVoice Unable to reroute audio: %@", [error localizedDescription]);
             }
         }
     };
@@ -598,30 +603,30 @@ withCompletionHandler:(void (^)(void))completion {
 
 #pragma mark - CXProviderDelegate
 - (void)providerDidReset:(CXProvider *)provider {
-  NSLog(@"providerDidReset");
+  NSLog(@"TVoice providerDidReset");
     self.audioDevice.enabled = YES;
 }
 
 - (void)providerDidBegin:(CXProvider *)provider {
-  NSLog(@"providerDidBegin");
+  NSLog(@"TVoice providerDidBegin");
 }
 
 - (void)provider:(CXProvider *)provider didActivateAudioSession:(AVAudioSession *)audioSession {
-  NSLog(@"provider:didActivateAudioSession");
+  NSLog(@"TVoice provider:didActivateAudioSession");
     self.audioDevice.enabled = YES;
 }
 
 - (void)provider:(CXProvider *)provider didDeactivateAudioSession:(AVAudioSession *)audioSession {
-  NSLog(@"provider:didDeactivateAudioSession");
+  NSLog(@"TVoice provider:didDeactivateAudioSession");
     self.audioDevice.enabled = NO;
 }
 
 - (void)provider:(CXProvider *)provider timedOutPerformingAction:(CXAction *)action {
-  NSLog(@"provider:timedOutPerformingAction");
+  NSLog(@"TVoice provider:timedOutPerformingAction");
 }
 
 - (void)provider:(CXProvider *)provider performStartCallAction:(CXStartCallAction *)action {
-  NSLog(@"provider:performStartCallAction");
+  NSLog(@"TVoice provider:performStartCallAction");
 
     self.audioDevice.enabled = NO;
     self.audioDevice.block();
@@ -641,7 +646,7 @@ withCompletionHandler:(void (^)(void))completion {
 }
 
 - (void)provider:(CXProvider *)provider performAnswerCallAction:(CXAnswerCallAction *)action {
-  NSLog(@"provider:performAnswerCallAction");
+  NSLog(@"TVoice provider:performAnswerCallAction");
 
   self.audioDevice.enabled = NO;
   self.audioDevice.block();
@@ -657,7 +662,7 @@ withCompletionHandler:(void (^)(void))completion {
 }
 
 - (void)provider:(CXProvider *)provider performEndCallAction:(CXEndCallAction *)action {
-  NSLog(@"provider:performEndCallAction");
+  NSLog(@"TVoice provider:performEndCallAction");
 
     TVOCallInvite *callInvite = self.activeCallInvites[action.callUUID.UUIDString];
     TVOCall *call = self.activeCalls[action.callUUID.UUIDString];
@@ -669,7 +674,7 @@ withCompletionHandler:(void (^)(void))completion {
     } else if (call) {
         [call disconnect];
     } else {
-        NSLog(@"Unknown UUID to perform end-call action with");
+        NSLog(@"TVoice Unknown UUID to perform end-call action with");
     }
 
     self.audioDevice.enabled = YES;
@@ -699,7 +704,7 @@ withCompletionHandler:(void (^)(void))completion {
 - (void)provider:(CXProvider *)provider performPlayDTMFCallAction:(CXPlayDTMFCallAction *)action {
   TVOCall *call = self.activeCalls[action.callUUID.UUIDString];
   if (call && call.state == TVOCallStateConnected) {
-    NSLog(@"SendDigits %@", action.digits);
+    NSLog(@"TVoice SendDigits %@", action.digits);
     [call sendDigits:action.digits];
   }
 }
@@ -716,9 +721,9 @@ withCompletionHandler:(void (^)(void))completion {
 
   [self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
     if (error) {
-      NSLog(@"StartCallAction transaction request failed: %@", [error localizedDescription]);
+      NSLog(@"TVoice StartCallAction transaction request failed: %@", [error localizedDescription]);
     } else {
-      NSLog(@"StartCallAction transaction request successful");
+      NSLog(@"TVoice StartCallAction transaction request successful");
 
       CXCallUpdate *callUpdate = [[CXCallUpdate alloc] init];
       callUpdate.remoteHandle = callHandle;
@@ -748,9 +753,9 @@ withCompletionHandler:(void (^)(void))completion {
 
   [self.callKitProvider reportNewIncomingCallWithUUID:uuid update:callUpdate completion:^(NSError *error) {
     if (!error) {
-      NSLog(@"Incoming call successfully reported");
+      NSLog(@"TVoice Incoming call successfully reported");
     } else {
-      NSLog(@"Failed to report incoming call successfully: %@.", [error localizedDescription]);
+      NSLog(@"TVoice Failed to report incoming call successfully: %@.", [error localizedDescription]);
     }
   }];
 }
@@ -764,9 +769,12 @@ withCompletionHandler:(void (^)(void))completion {
   CXTransaction *transaction = [[CXTransaction alloc] initWithAction:endCallAction];
 
   [self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
-    if (error) {
-      NSLog(@"EndCallAction transaction request failed: %@", [error localizedDescription]);
-    }
+      if (error) {
+          NSLog(@"TVoice EndCallAction transaction request failed: %@", [error localizedDescription]);
+      }
+      else {
+          NSLog(@"TVoice EndCallAction transaction request successful");
+      }
   }];
 }
 
@@ -814,10 +822,10 @@ withCompletionHandler:(void (^)(void))completion {
 }
 
 - (void)handleAppTerminateNotification {
-  NSLog(@"handleAppTerminateNotification called");
+  NSLog(@"TVoice handleAppTerminateNotification called");
 
   if (self.activeCall) {
-    NSLog(@"handleAppTerminateNotification disconnecting an active call");
+    NSLog(@"TVoice handleAppTerminateNotification disconnecting an active call");
     [self.activeCall disconnect];
   }
 }

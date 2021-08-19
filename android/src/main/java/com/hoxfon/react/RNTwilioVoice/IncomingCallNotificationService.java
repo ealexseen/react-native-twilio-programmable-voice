@@ -65,11 +65,11 @@ public class IncomingCallNotificationService extends Service {
 
             case Constants.ACTION_JS_ANSWER:
                 endForeground();
-                break;   
+                break;
 
             case Constants.ACTION_JS_REJECT:
                 endForeground();
-                break;    
+                break;
 
             default:
                 break;
@@ -200,7 +200,7 @@ public class IncomingCallNotificationService extends Service {
                         .setPriority(NotificationCompat.PRIORITY_HIGH)
                         .setCategory(Notification.CATEGORY_CALL)
                         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                        .setContentIntent(pendingIntent)ы
+                        .setContentIntent(pendingIntent)
                 ;
 
         // build notification large icon

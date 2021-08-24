@@ -9,8 +9,6 @@ import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.util.Log;
 
-import com.dieam.reactnativepushnotification.modules.RNPushNotificationJsDelivery;
-import com.dieam.reactnativepushnotification.modules.RNReceivedMessageHandler;
 import com.facebook.react.ReactApplication;
 import com.facebook.react.ReactInstanceManager;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -32,16 +30,10 @@ import java.util.Map;
 import java.util.Random;
 
 import static com.hoxfon.react.RNTwilioVoice.TwilioVoiceModule.TAG;
-import static com.dieam.reactnativepushnotification.modules.RNPushNotification.LOG_TAG;
-
 import io.intercom.android.sdk.push.IntercomPushClient;
-import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.WritableMap;
 
 public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
     private final IntercomPushClient intercomPushClient = new IntercomPushClient();
-    private RNReceivedMessageHandler mMessageReceivedHandler;
-    private FirebaseMessagingService mFirebaseServiceDelegate;
 
     @Override
     public void onCreate() {
@@ -52,22 +44,16 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
     public void onNewToken(String token) {
         super.onNewToken(token);
 
-        Log.i(LOG_TAG, "onNewToken FirebaseMessagingIdService: " + token);
-
         intercomPushClient.sendTokenToIntercom(getApplication(), token);
         //DO HOST LOGIC HERE
 
         Intent intent = new Intent(Constants.ACTION_FCM_TOKEN);
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
-
-        onNewTokenPush(token);
     }
 
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
         super.onMessageReceived(remoteMessage);
-
-        Log.i(LOG_TAG, "onMessageReceived FirebaseMessagingIdService: " + remoteMessage);
 
         Map message = remoteMessage.getData();
         if (intercomPushClient.isIntercomPush(message)) {
@@ -76,8 +62,6 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
             if (BuildConfig.DEBUG) {
                 Log.i(TAG, "Bundle data: " + remoteMessage.getData());
             }
-
-            onMessageReceivedPush(remoteMessage);
 
             // Check if message contains a data payload.
             if (remoteMessage.getData().size() > 0) {
@@ -166,60 +150,5 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
             intent.putExtra(Constants.CANCELLED_CALL_INVITE_EXCEPTION, callException.getMessage());
         }
         startService(intent);
-    }
-
-    // push notification
-    public void RNPushNotificationListenerService() {
-        super();
-        this.mMessageReceivedHandler = new RNReceivedMessageHandler(this);
-    }
-
-    public void RNPushNotificationListenerService(FirebaseMessagingService delegate) {
-        super();
-        this.mFirebaseServiceDelegate = delegate;
-        this.mMessageReceivedHandler = new RNReceivedMessageHandler(delegate);
-    }
-
-    public void onNewTokenPush(String token) {
-        final String deviceToken = token;
-        final FirebaseMessagingService serviceRef = (this.mFirebaseServiceDelegate == null) ? this : this.mFirebaseServiceDelegate;
-        Log.d(LOG_TAG, "Refreshed token: " + deviceToken);
-
-        Handler handler = new Handler(Looper.getMainLooper());
-        handler.post(new Runnable() {
-            public void run() {
-                // Construct and load our normal React JS code bundle
-                final ReactInstanceManager mReactInstanceManager = ((ReactApplication)serviceRef.getApplication()).getReactNativeHost().getReactInstanceManager();
-                ReactContext context = mReactInstanceManager.getCurrentReactContext();
-                // If it's constructed, send a notification
-                if (context != null) {
-                    handleNewToken((ReactApplicationContext) context, deviceToken);
-                } else {
-                    // Otherwise wait for construction, then send the notification
-                    mReactInstanceManager.addReactInstanceEventListener(new ReactInstanceManager.ReactInstanceEventListener() {
-                        public void onReactContextInitialized(ReactContext context) {
-                            handleNewToken((ReactApplicationContext) context, deviceToken);
-                            mReactInstanceManager.removeReactInstanceEventListener(this);
-                        }
-                    });
-                    if (!mReactInstanceManager.hasStartedCreatingInitialContext()) {
-                        // Construct it in the background
-                        mReactInstanceManager.createReactContextInBackground();
-                    }
-                }
-            }
-        });
-    }
-
-    private void handleNewToken(ReactApplicationContext context, String token) {
-        RNPushNotificationJsDelivery jsDelivery = new RNPushNotificationJsDelivery(context);
-
-        WritableMap params = Arguments.createMap();
-        params.putString("deviceToken", token);
-        jsDelivery.sendEvent("remoteNotificationsRegistered", params);
-    }
-
-    public void onMessageReceivedPush(RemoteMessage message) {
-        mMessageReceivedHandler.handleReceivedMessage(message);
     }
 }

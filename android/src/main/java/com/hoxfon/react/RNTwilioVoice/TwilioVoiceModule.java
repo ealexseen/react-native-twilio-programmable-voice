@@ -246,7 +246,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
         };
     }
 
-    private UnregistrationListener unregistrationListener() {   
+    private UnregistrationListener unregistrationListener() {
         return new UnregistrationListener() {
             @Override
             public void onUnregistered(String accessToken, String fcmToken) {
@@ -692,11 +692,13 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
         WritableMap params = Arguments.createMap();
         params.putBoolean("initialized", true);
         promise.resolve(params);
-        startAudioSwitch();
 
-        Intent intent = getCurrentActivity().getIntent();
+        if (getCurrentActivity() != null) {
+            startAudioSwitch();
 
-        this.getActivityLaunchOption(intent);
+            Intent intent = getCurrentActivity().getIntent();
+            this.getActivityLaunchOption(intent);
+        }
     }
 
     /*

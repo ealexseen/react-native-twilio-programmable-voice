@@ -63,6 +63,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 
+import java.util.*;
+
 import java.lang.IllegalStateException;
 
 import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_CONNECTION_DID_CONNECT;
@@ -984,10 +986,14 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
         audioSwitch.start((devices, device) -> {
             selectedAudioDevice = device;
             WritableMap params = Arguments.createMap();
-            for (AudioDevice a : devices) {
+
+            Iterator iterator = devices.iterator();
+            while (iterator.hasNext()) {
+                AudioDevice a = (AudioDevice) iterator.next();
                 params.putBoolean(a.getName(), device.getName().equals(a.getName()));
                 availableAudioDevices.put(a.getName(), a);
             }
+
             eventManager.sendEvent(EVENT_AUDIO_DEVICES_UPDATED, params);
             return Unit.INSTANCE;
         });

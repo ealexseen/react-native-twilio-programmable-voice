@@ -63,6 +63,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 
+import java.lang.IllegalStateException;
+
 import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_CONNECTION_DID_CONNECT;
 import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_CONNECTION_DID_DISCONNECT;
 import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_DEVICE_DID_RECEIVE_INCOMING;
@@ -296,7 +298,14 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
                 if (BuildConfig.DEBUG) {
                     Log.i(TAG, "Call.Listener().onConnected(). Call state: " + call.getState());
                 }
-                audioSwitch.activate();
+
+                try {
+                    audioSwitch.activate();
+                } catch(IllegalStateException ex) {
+                    startAudioSwitch();
+                    audioSwitch.activate();
+                }
+
                 proximityManager.startProximitySensor();
                 headsetManager.startWiredHeadsetEvent(getReactApplicationContext());
 

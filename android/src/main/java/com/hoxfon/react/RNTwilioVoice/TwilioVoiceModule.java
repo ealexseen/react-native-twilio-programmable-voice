@@ -991,8 +991,8 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
             selectedAudioDevice = device;
             WritableMap params = Arguments.createMap();
 
-            List<Object> copied = new ArrayList<>();
-            Collections.copy(devices, copied);
+            List<AudioDevice> copied = new ArrayList<>();
+            Collections.copy(copied, devices);
 
             Iterator iterator = copied.iterator();
             while (iterator.hasNext()) {

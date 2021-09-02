@@ -31,21 +31,21 @@ public class SoundPoolManager {
     }
 
     public void playRinging() {
-        if (!playing) {
+        if (!ringtone.isPlaying()) {
             ringtone.play();
             playing = true;
         }
     }
 
     public void stopRinging() {
-        if (playing) {
+        if (ringtone.isPlaying()) {
             ringtone.stop();
             playing = false;
         }
     }
 
     public void playDisconnect() {
-        if (!playing) {
+        if (!ringtone.isPlaying()) {
             ringtone.stop();
             playing = false;
         }

@@ -66,6 +66,7 @@ import java.util.List;
 import java.util.*;
 
 import java.lang.IllegalStateException;
+import java.util.ConcurrentModificationException;
 
 import java.util.Collections;
 import java.util.ArrayList;
@@ -991,14 +992,17 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
             selectedAudioDevice = device;
             WritableMap params = Arguments.createMap();
 
-            List<AudioDevice> copied = new ArrayList<>();
-            Collections.copy(copied, devices);
-
-            Iterator iterator = copied.iterator();
-            while (iterator.hasNext()) {
-                AudioDevice a = (AudioDevice) iterator.next();
-                params.putBoolean(a.getName(), device.getName().equals(a.getName()));
-                availableAudioDevices.put(a.getName(), a);
+            try {
+                Iterator iterator = devices.iterator();
+                while (iterator.hasNext()) {
+                      AudioDevice a = (AudioDevice) iterator.next();
+                      params.putBoolean(a.getName(), device.getName().equals(a.getName()));
+                      availableAudioDevices.put(a.getName(), a);
+                }
+            } catch (ConcurrentModificationException ex) {
+                params = Arguments.createMap();
+                params.putBoolean(device.getName(), true);
+                availableAudioDevices.put(device.getName(), device);
             }
 
             eventManager.sendEvent(EVENT_AUDIO_DEVICES_UPDATED, params);

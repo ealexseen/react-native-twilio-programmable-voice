@@ -67,6 +67,10 @@ import java.util.*;
 
 import java.lang.IllegalStateException;
 
+import java.util.Collections;
+import java.util.ArrayList;
+import java.lang.Object;
+
 import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_CONNECTION_DID_CONNECT;
 import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_CONNECTION_DID_DISCONNECT;
 import static com.hoxfon.react.RNTwilioVoice.EventManager.EVENT_DEVICE_DID_RECEIVE_INCOMING;
@@ -987,7 +991,10 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
             selectedAudioDevice = device;
             WritableMap params = Arguments.createMap();
 
-            Iterator iterator = devices.iterator();
+            List<Object> copied = new ArrayList<>();
+            Collections.copy(devices, copied);
+
+            Iterator iterator = copied.iterator();
             while (iterator.hasNext()) {
                 AudioDevice a = (AudioDevice) iterator.next();
                 params.putBoolean(a.getName(), device.getName().equals(a.getName()));

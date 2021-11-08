@@ -12,10 +12,12 @@ public class SoundPoolManager {
     private boolean playing = false;
     private static SoundPoolManager instance;
     private Ringtone ringtone = null;
+    private AudioManager audioManager = null;
 
     private SoundPoolManager(Context context) {
         Uri ringtoneSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
         ringtone = RingtoneManager.getRingtone(context, ringtoneSound);
+        audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         AudioAttributes alarmAttribute = new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ALARM)
                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
@@ -31,7 +33,7 @@ public class SoundPoolManager {
     }
 
     public void playRinging() {
-        if (!ringtone.isPlaying()) {
+        if (audioManager.getRingerMode() == AudioManager.RINGER_MODE_NORMAL && !playing) {
             ringtone.play();
             playing = true;
         }

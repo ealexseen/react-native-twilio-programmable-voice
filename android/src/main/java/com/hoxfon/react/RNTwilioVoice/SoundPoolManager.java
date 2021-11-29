@@ -6,6 +6,7 @@ import android.media.AudioManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
+import android.os.Vibrator;
 
 public class SoundPoolManager {
 
@@ -13,8 +14,10 @@ public class SoundPoolManager {
     private static SoundPoolManager instance;
     private Ringtone ringtone = null;
     private AudioManager audioManager = null;
+    private Vibrator vibe = null;
 
     private SoundPoolManager(Context context) {
+        vibe = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
         Uri ringtoneSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
         ringtone = RingtoneManager.getRingtone(context, ringtoneSound);
         audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
@@ -36,6 +39,11 @@ public class SoundPoolManager {
         if (audioManager.getRingerMode() == AudioManager.RINGER_MODE_NORMAL && !playing) {
             ringtone.play();
             playing = true;
+        } else if (audioManager.getRingerMode() == AudioManager.RINGER_MODE_VIBRATE) {
+            long[] pattern = {0, 300, 1000};
+
+            // 0 meaning is repeat indefinitely
+            vibe.vibrate(pattern, 0);
         }
     }
 
@@ -44,6 +52,8 @@ public class SoundPoolManager {
             ringtone.stop();
             playing = false;
         }
+
+        vibe.cancel();
     }
 
     public void playDisconnect() {

@@ -38,6 +38,7 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
     @Override
     public void onCreate() {
         super.onCreate();
+        startForeground(1,new Notification());
     }
 
     @Override
@@ -139,7 +140,11 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
         intent.putExtra(Constants.INCOMING_CALL_NOTIFICATION_ID, notificationId);
         intent.putExtra(Constants.INCOMING_CALL_INVITE, callInvite);
 
-        startService(intent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
     }
 
     private void handleCancelledCallInvite(CancelledCallInvite cancelledCallInvite, CallException callException) {
@@ -149,6 +154,10 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
         if (callException != null) {
             intent.putExtra(Constants.CANCELLED_CALL_INVITE_EXCEPTION, callException.getMessage());
         }
-        startService(intent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
     }
 }

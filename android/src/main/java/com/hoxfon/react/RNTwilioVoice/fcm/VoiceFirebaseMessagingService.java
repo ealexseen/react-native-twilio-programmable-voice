@@ -32,6 +32,8 @@ import java.util.Random;
 import static com.hoxfon.react.RNTwilioVoice.TwilioVoiceModule.TAG;
 import io.intercom.android.sdk.push.IntercomPushClient;
 
+import android.app.Notification;
+
 public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
     private final IntercomPushClient intercomPushClient = new IntercomPushClient();
 

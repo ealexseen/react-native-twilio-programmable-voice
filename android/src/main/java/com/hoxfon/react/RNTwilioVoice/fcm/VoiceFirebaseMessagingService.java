@@ -32,16 +32,12 @@ import java.util.Random;
 import static com.hoxfon.react.RNTwilioVoice.TwilioVoiceModule.TAG;
 import io.intercom.android.sdk.push.IntercomPushClient;
 
-import android.app.Notification;
-import android.os.Build;
-
 public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
     private final IntercomPushClient intercomPushClient = new IntercomPushClient();
 
     @Override
     public void onCreate() {
         super.onCreate();
-        startForeground(1,new Notification());
     }
 
     @Override
@@ -143,11 +139,7 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
         intent.putExtra(Constants.INCOMING_CALL_NOTIFICATION_ID, notificationId);
         intent.putExtra(Constants.INCOMING_CALL_INVITE, callInvite);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent);
-        } else {
-            startService(intent);
-        }
+        startService(intent);
     }
 
     private void handleCancelledCallInvite(CancelledCallInvite cancelledCallInvite, CallException callException) {
@@ -157,10 +149,6 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
         if (callException != null) {
             intent.putExtra(Constants.CANCELLED_CALL_INVITE_EXCEPTION, callException.getMessage());
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent);
-        } else {
-            startService(intent);
-        }
+        startService(intent);
     }
 }

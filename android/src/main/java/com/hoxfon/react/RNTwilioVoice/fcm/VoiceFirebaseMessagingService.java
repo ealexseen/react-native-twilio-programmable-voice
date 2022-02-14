@@ -9,8 +9,11 @@ import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.util.Log;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.Notification;
 import android.os.Build;
+import androidx.core.app.NotificationCompat;
 
 import com.facebook.react.ReactApplication;
 import com.facebook.react.ReactInstanceManager;

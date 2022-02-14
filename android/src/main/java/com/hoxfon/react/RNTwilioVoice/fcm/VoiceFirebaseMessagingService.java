@@ -9,6 +9,9 @@ import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.util.Log;
 
+import android.app.Notification;
+import android.os.Build;
+
 import com.facebook.react.ReactApplication;
 import com.facebook.react.ReactInstanceManager;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -26,6 +29,8 @@ import com.twilio.voice.CancelledCallInvite;
 import com.twilio.voice.MessageListener;
 import com.twilio.voice.Voice;
 
+import com.hoxfon.react.RNTwilioVoice.R;
+
 import java.util.Map;
 import java.util.Random;
 
@@ -35,9 +40,36 @@ import io.intercom.android.sdk.push.IntercomPushClient;
 public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
     private final IntercomPushClient intercomPushClient = new IntercomPushClient();
 
+    private void startMyOwnForeground(){
+        String NOTIFICATION_CHANNEL_ID = "com.salesmessage.arcadia.app";
+        String channelName = "Salesmassage Call Service";
+        NotificationChannel chan = new NotificationChannel(NOTIFICATION_CHANNEL_ID, channelName, NotificationManager.IMPORTANCE_NONE);
+        chan.setLightColor(Color.BLUE);
+        chan.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        assert manager != null;
+        manager.createNotificationChannel(chan);
+
+        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID);
+        Notification notification = notificationBuilder.setOngoing(true)
+                .setSmallIcon(R.drawable.ic_call_white_24dp)
+                .setContentTitle(getString(R.string.call_incoming_title))
+                .setPriority(NotificationManager.IMPORTANCE_MIN)
+                .setCategory(Notification.CATEGORY_SERVICE)
+                .build();
+        startForeground(2, notification);
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startMyOwnForeground();
+        } else {
+            startForeground(1, new Notification());
+        }
+
     }
 
     @Override
@@ -139,7 +171,11 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
         intent.putExtra(Constants.INCOMING_CALL_NOTIFICATION_ID, notificationId);
         intent.putExtra(Constants.INCOMING_CALL_INVITE, callInvite);
 
-        startService(intent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
     }
 
     private void handleCancelledCallInvite(CancelledCallInvite cancelledCallInvite, CallException callException) {
@@ -149,6 +185,11 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
         if (callException != null) {
             intent.putExtra(Constants.CANCELLED_CALL_INVITE_EXCEPTION, callException.getMessage());
         }
-        startService(intent);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
     }
 }

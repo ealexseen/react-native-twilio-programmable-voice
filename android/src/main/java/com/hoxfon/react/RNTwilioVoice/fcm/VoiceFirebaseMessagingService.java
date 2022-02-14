@@ -13,6 +13,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Notification;
 import android.os.Build;
+import android.graphics.Color;
 import androidx.core.app.NotificationCompat;
 
 import com.facebook.react.ReactApplication;

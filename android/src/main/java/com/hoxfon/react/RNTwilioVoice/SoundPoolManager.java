@@ -25,7 +25,10 @@ public class SoundPoolManager {
                 .setUsage(AudioAttributes.USAGE_ALARM)
                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                 .build();
-        ringtone.setAudioAttributes(alarmAttribute);
+
+        if (ringtone != null) {
+            ringtone.setAudioAttributes(alarmAttribute);
+        }
     }
 
     public static SoundPoolManager getInstance(Context context) {

@@ -45,36 +45,29 @@ import io.intercom.android.sdk.push.IntercomPushClient;
 public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
     private final IntercomPushClient intercomPushClient = new IntercomPushClient();
 
-    private void startMyOwnForeground(){
-        String NOTIFICATION_CHANNEL_ID = "com.salesmessage.arcadia.app";
-        String channelName = "Salesmassage Call Service";
-        NotificationChannel chan = new NotificationChannel(NOTIFICATION_CHANNEL_ID, channelName, NotificationManager.IMPORTANCE_NONE);
-        chan.setLightColor(Color.BLUE);
-        chan.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
-        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        assert manager != null;
-        manager.createNotificationChannel(chan);
-
-        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID);
-        Notification notification = notificationBuilder.setOngoing(true)
-                .setSmallIcon(R.drawable.ic_call_white_24dp)
-                .setContentTitle(getString(R.string.call_incoming_title))
-                .setPriority(NotificationManager.IMPORTANCE_MIN)
-                .setCategory(Notification.CATEGORY_SERVICE)
-                .build();
-        startForeground(2, notification);
-    }
+//     private void startMyOwnForeground(){
+//         String NOTIFICATION_CHANNEL_ID = "com.salesmessage.arcadia.app";
+//         String channelName = "Salesmassage Call Service";
+//         NotificationChannel chan = new NotificationChannel(NOTIFICATION_CHANNEL_ID, channelName, NotificationManager.IMPORTANCE_NONE);
+//         chan.setLightColor(Color.BLUE);
+//         chan.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+//         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+//         assert manager != null;
+//         manager.createNotificationChannel(chan);
+//
+//         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID);
+//         Notification notification = notificationBuilder.setOngoing(true)
+//                 .setSmallIcon(R.drawable.ic_call_white_24dp)
+//                 .setContentTitle(getString(R.string.call_incoming_title))
+//                 .setPriority(NotificationManager.IMPORTANCE_MIN)
+//                 .setCategory(Notification.CATEGORY_SERVICE)
+//                 .build();
+//         startForeground(2, notification);
+//     }
 
     @Override
     public void onCreate() {
         super.onCreate();
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startMyOwnForeground();
-        } else {
-            startForeground(1, new Notification());
-        }
-
     }
 
     @Override

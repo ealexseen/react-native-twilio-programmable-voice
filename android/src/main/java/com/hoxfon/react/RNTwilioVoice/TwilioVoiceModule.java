@@ -174,9 +174,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
          * Enable changing the volume using the up/down keys during a conversation
          */
 
-         if (getCurrentActivity() != null) {
-            getCurrentActivity().setVolumeControlStream(AudioManager.STREAM_VOICE_CALL);
-         }
+        getCurrentActivity().setVolumeControlStream(AudioManager.STREAM_VOICE_CALL);
 
         registerReceiver();
 
@@ -221,9 +219,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
          */
         audioSwitch.stop();
 
-        if (getCurrentActivity() != null) {
-            getCurrentActivity().setVolumeControlStream(savedVolumeControlStream);
-        }
+        getCurrentActivity().setVolumeControlStream(savedVolumeControlStream);
     }
 
     @Override

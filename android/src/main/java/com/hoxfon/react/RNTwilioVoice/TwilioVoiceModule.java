@@ -169,6 +169,10 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
 
     @Override
     public void onHostResume() {
+        if (getCurrentActivity() == null) {
+            return;
+        }
+
         savedVolumeControlStream = getCurrentActivity().getVolumeControlStream();
         /*
          * Enable changing the volume using the up/down keys during a conversation
@@ -991,6 +995,10 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
 
         WritableMap devices = Arguments.createMap();
         for (AudioDevice a : availableAudioDevices) {
+            if (a == null || selectedAudioDevice == null) {
+                return;
+            }
+
             devices.putBoolean(a.getName(), selectedAudioDevice.getName().equals(a.getName()));
         }
         promise.resolve(devices);
@@ -998,6 +1006,10 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
 
     @ReactMethod
     public void getSelectedAudioDevice(Promise promise) {
+        if (selectedAudioDevice == null) {
+            return;
+        }
+
         WritableMap device = Arguments.createMap();
         device.putString(Constants.SELECTED_AUDIO_DEVICE, selectedAudioDevice.getName());
         promise.resolve(device);
@@ -1016,6 +1028,10 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
         audioSwitch.start((devices, device) -> {
             selectedAudioDevice = device;
             WritableMap params = Arguments.createMap();
+
+            if (devices === null || device == null) {
+                return null;
+            }
 
             try {
                 Iterator iterator = devices.iterator();

@@ -69,7 +69,7 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
     public void onCreate() {
         super.onCreate();
 
-        //startMyOwnForeground();
+        startMyOwnForeground();
     }
 
     @Override

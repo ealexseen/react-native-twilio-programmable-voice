@@ -1029,7 +1029,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
             selectedAudioDevice = device;
             WritableMap params = Arguments.createMap();
 
-            if (devices === null || device == null) {
+            if (devices == null || device == null) {
                 return null;
             }
 

@@ -51,12 +51,16 @@ public class SoundPoolManager {
     }
 
     public void stopRinging() {
-        if (ringtone.isPlaying()) {
-            ringtone.stop();
-            playing = false;
-        }
+        try {
+            if (ringtone.isPlaying() && ringtone != null) {
+                ringtone.stop();
+                playing = false;
+            }
 
-        vibe.cancel();
+            vibe.cancel();
+        } catch (Exception e) {
+          Log.e(TAG, "Failed from stopRinging");
+        }
     }
 
     public void playDisconnect() {

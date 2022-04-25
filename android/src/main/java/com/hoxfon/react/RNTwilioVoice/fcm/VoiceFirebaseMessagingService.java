@@ -67,9 +67,28 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
 
     @Override
     public void onCreate() {
-        super.onCreate();
+        if (isServiceRunning()) {
+            startMyOwnForeground();
+        }
 
-        startMyOwnForeground();
+        super.onCreate();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+
+        stopForeground(true);
+    }
+
+    private boolean isServiceRunning() {
+        ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)){
+            if ("com.salesmessage.arcadia.app".equals(service.service.getClassName())) {
+                return true;
+            }
+        }
+            return false;
     }
 
     @Override

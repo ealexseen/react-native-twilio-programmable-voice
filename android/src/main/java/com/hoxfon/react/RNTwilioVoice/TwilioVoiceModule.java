@@ -647,11 +647,12 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
         Log.e(TAG, "NO active call invite");
 
         WritableMap params = Arguments.createMap();
-        params.putString(Constants.CALL_SID, activeCallInvite.getCallSid());
-        params.putString(Constants.CALL_FROM, activeCallInvite.getFrom());
-        params.putString(Constants.CALL_TO, activeCallInvite.getTo());
 
         if (activeCallInvite != null) {
+            params.putString(Constants.CALL_SID, activeCallInvite.getCallSid());
+            params.putString(Constants.CALL_FROM, activeCallInvite.getFrom());
+            params.putString(Constants.CALL_TO, activeCallInvite.getTo());
+
             Map<String, String> customParameters = activeCallInvite.getCustomParameters();
             for (Map.Entry<String, String> entry: customParameters.entrySet()) {
                 params.putString(entry.getKey(), entry.getValue());

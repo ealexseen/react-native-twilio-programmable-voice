@@ -800,7 +800,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
                 .enableDscp(true)
                 .build();
 
-        if (callListener != null) {
+        if (callListener != null && activeCallInvite != null) {
             activeCallInvite.accept(getReactApplicationContext(), acceptOptions, callListener);
         }
     }
@@ -825,7 +825,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
                 .enableDscp(true)
                 .build();
 
-        if (callListener != null) {
+        if (callListener != null && activeCallInvite != null) {
             activeCallInvite.accept(getReactApplicationContext(), acceptOptions, callListener);
         }
     }

@@ -41,7 +41,7 @@ public class SoundPoolManager {
     }
 
     public void playRinging() {
-        if (audioManager.getRingerMode() == AudioManager.RINGER_MODE_NORMAL && !playing) {
+        if (audioManager.getRingerMode() == AudioManager.RINGER_MODE_NORMAL && !playing && ringtone != null) {
             ringtone.play();
             playing = true;
         } else if (audioManager.getRingerMode() == AudioManager.RINGER_MODE_VIBRATE) {

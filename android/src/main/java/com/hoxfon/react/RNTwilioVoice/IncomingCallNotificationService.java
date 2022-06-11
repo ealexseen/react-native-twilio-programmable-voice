@@ -65,7 +65,7 @@ public class IncomingCallNotificationService extends Service {
 
             case Constants.ACTION_JS_ANSWER:
                 endForeground();
-                break;   
+                break;
 
             case Constants.ACTION_JS_REJECT:
                 LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
@@ -201,8 +201,7 @@ public class IncomingCallNotificationService extends Service {
                         .setPriority(NotificationCompat.PRIORITY_HIGH)
                         .setCategory(Notification.CATEGORY_CALL)
                         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                        .setContentIntent(pendingIntent)
-                ;
+                        .setContentIntent(pendingIntent);
 
         // build notification large icon
         Resources res = context.getResources();
@@ -258,7 +257,12 @@ public class IncomingCallNotificationService extends Service {
     private void reject(CallInvite callInvite, int notificationId) {
         Log.i(TAG, "reject() 1111");
 
-        SoundPoolManager.getInstance(this).stopRinging();
+        try {
+            SoundPoolManager.getInstance(this).stopRinging();
+        } catch (NullPointerException ex) {
+            ex.printStackTrace();
+        }
+
         endForeground();
         callInvite.reject(getApplicationContext());
     }
@@ -266,7 +270,12 @@ public class IncomingCallNotificationService extends Service {
     private void handleCancelledCall(Intent intent) {
         Log.i(TAG, "handleCancelledCall() 1111");
 
-        SoundPoolManager.getInstance(this).stopRinging();
+        try {
+            SoundPoolManager.getInstance(this).stopRinging();
+        } catch (NullPointerException ex) {
+            ex.printStackTrace();
+        }
+
         endForeground();
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
@@ -304,7 +313,12 @@ public class IncomingCallNotificationService extends Service {
         if (BuildConfig.DEBUG) {
             Log.i(TAG, "sendCallInviteToActivity(). Android SDK: " + Build.VERSION.SDK_INT + " app visible: " + isAppVisible());
         }
-        SoundPoolManager.getInstance(this).playRinging();
+
+        try {
+            SoundPoolManager.getInstance(this).playRinging();
+        } catch (NullPointerException ex) {
+            ex.printStackTrace();
+        }
 
         // From Android SDK 29 apps are prevented to start an activity from the background
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !isAppVisible()) {

@@ -992,7 +992,8 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
 
     @ReactMethod
     public void getAudioDevices(Promise promise) {
-        List<AudioDevice> availableAudioDevices = audioSwitch.getAvailableAudioDevices();
+        List<AudioDevice> availableAudioDevices =
+                new ArrayList<>(audioSwitch.getAvailableAudioDevices());
 
         WritableMap devices = Arguments.createMap();
         for (AudioDevice a : availableAudioDevices) {

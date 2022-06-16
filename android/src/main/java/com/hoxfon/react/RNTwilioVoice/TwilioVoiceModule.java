@@ -774,7 +774,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
 
                         // Get new Instance ID token
                         String fcmToken = task.getResult().getToken();
-                        if (fcmToken != null) {
+                        if (fcmToken != null && accessToken != null) {
                             if (BuildConfig.DEBUG) {
                                 Log.i(TAG, "Unregistering with FCM");
                             }

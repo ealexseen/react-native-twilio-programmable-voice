@@ -796,6 +796,11 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
 
         SoundPoolManager.getInstance(getReactApplicationContext()).stopRinging();
 
+        if (!checkPermissionForMicrophone()) {
+            eventManager.sendEvent(EVENT_CALL_INVITE_CANCELLED, null);
+            return;
+        }
+
         AcceptOptions acceptOptions = new AcceptOptions.Builder()
                 .enableDscp(true)
                 .build();
@@ -814,6 +819,11 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
         }
         if (BuildConfig.DEBUG) {
             Log.i(TAG, "accept()");
+        }
+
+        if (!checkPermissionForMicrophone()) {
+            eventManager.sendEvent(EVENT_CALL_INVITE_CANCELLED, null);
+            return;
         }
 
         Intent intent = new Intent(getReactApplicationContext(), IncomingCallNotificationService.class);
@@ -868,6 +878,13 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
             eventManager.sendEvent(EVENT_DEVICE_NOT_READY, errParams);
             return;
         }
+
+        if (!checkPermissionForMicrophone()) {
+            errParams.putString(Constants.ERROR, "Permission is missed");
+            eventManager.sendEvent(EVENT_DEVICE_NOT_READY, errParams);
+            return;
+        }
+
         if (params == null) {
             errParams.putString(Constants.ERROR, "Invalid parameters");
             eventManager.sendEvent(EVENT_CONNECTION_DID_DISCONNECT, errParams);

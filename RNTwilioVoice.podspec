@@ -9,7 +9,7 @@ Pod::Spec.new do |s|
   s.author       = package['contributors'][0]['name']
   s.homepage     = package['homepage']
   s.license      = package['license']
-  s.platform     = :ios, "11.0"
+  s.platform     = :ios, "10.0"
   s.requires_arc   = true
 
   s.source_files   = 'ios/RNTwilioVoice/*.{h,m}'

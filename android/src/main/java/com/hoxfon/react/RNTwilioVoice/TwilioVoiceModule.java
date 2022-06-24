@@ -729,6 +729,11 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
             }
 
             Intent intent = getCurrentActivity().getIntent();
+
+            if (intent == null || intent.getAction() == null) {
+                return;
+            }
+
             this.getActivityLaunchOption(intent);
         }
     }

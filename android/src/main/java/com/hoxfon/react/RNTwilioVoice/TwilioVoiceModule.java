@@ -702,6 +702,10 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
 
     @ReactMethod
     public void initWithAccessToken(final String accessToken, Promise promise) {
+        if (accessToken == null) {
+            return
+        }
+
         if (accessToken.equals("")) {
             promise.reject(new JSApplicationIllegalArgumentException("Invalid access token"));
             return;
@@ -747,7 +751,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
      */
     private void registerForCallInvites() {
         String fcmToken = FirebaseInstanceId.getInstance().getToken();
-        if (fcmToken == null) {
+        if (fcmToken == null && accessToken == null) {
             return;
         }
         if (BuildConfig.DEBUG) {

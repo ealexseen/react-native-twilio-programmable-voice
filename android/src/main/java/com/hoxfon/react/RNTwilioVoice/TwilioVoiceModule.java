@@ -703,7 +703,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
     @ReactMethod
     public void initWithAccessToken(final String accessToken, Promise promise) {
         if (accessToken == null) {
-            return
+            return;
         }
 
         if (accessToken.equals("")) {

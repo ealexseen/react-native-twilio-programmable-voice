@@ -264,7 +264,10 @@ public class IncomingCallNotificationService extends Service {
         }
 
         endForeground();
-        callInvite.reject(getApplicationContext());
+
+        if (callInvite != null) {
+            callInvite.reject(getApplicationContext());
+        }
     }
 
     private void handleCancelledCall(Intent intent) {

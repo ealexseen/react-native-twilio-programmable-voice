@@ -774,7 +774,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
     }
 
     private void unregisterForCallInvites() {
-        FirebaseMessaging.getInstance().geToken()
+        FirebaseMessaging.getInstance().getToken()
                 .addOnCompleteListener(new OnCompleteListener<String>() {
                     @Override
                     public void onComplete(@NonNull Task<String> task) {

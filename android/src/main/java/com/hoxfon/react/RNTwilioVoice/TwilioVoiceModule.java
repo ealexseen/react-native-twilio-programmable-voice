@@ -39,7 +39,7 @@ import com.facebook.react.bridge.ReactMethod;
 
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
-import com.google.firebase.iid.FirebaseInstanceId;
+//import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.iid.InstanceIdResult;
 
 import com.twilio.audioswitch.AudioDevice;
@@ -751,7 +751,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
      *
      */
     private void registerForCallInvites() {
-        String fcmToken = FirebaseInstanceId.getInstance().getToken();
+        String fcmToken = FirebaseMessaging.getInstance().getToken();
         if (fcmToken == null && accessToken == null) {
             return;
         }

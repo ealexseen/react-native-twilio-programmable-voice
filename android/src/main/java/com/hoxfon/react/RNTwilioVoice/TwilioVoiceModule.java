@@ -40,7 +40,8 @@ import com.facebook.react.bridge.ReactMethod;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 //import com.google.firebase.iid.FirebaseInstanceId;
-import com.google.firebase.iid.InstanceIdResult;
+//import com.google.firebase.iid.InstanceIdResult;
+import com.google.firebase.messaging.FirebaseMessaging;
 
 import com.twilio.audioswitch.AudioDevice;
 import com.twilio.audioswitch.AudioSwitch;
@@ -751,14 +752,14 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
      *
      */
     private void registerForCallInvites() {
-        String fcmToken = FirebaseMessaging.getInstance().getToken();
+        Task<String> fcmToken = FirebaseMessaging.getInstance().getToken();
         if (fcmToken == null && accessToken == null) {
             return;
         }
         if (BuildConfig.DEBUG) {
             Log.i(TAG, "Registering with FCM");
         }
-        Voice.register(accessToken, Voice.RegistrationChannel.FCM, fcmToken, registrationListener);
+        Voice.register(accessToken, Voice.RegistrationChannel.FCM, String.valueOf(fcmToken), registrationListener);
     }
 
     /*
@@ -773,17 +774,17 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
     }
 
     private void unregisterForCallInvites() {
-        FirebaseInstanceId.getInstance().getInstanceId()
-                .addOnCompleteListener(new OnCompleteListener<InstanceIdResult>() {
+        FirebaseMessaging.getInstance().geToken()
+                .addOnCompleteListener(new OnCompleteListener<String>() {
                     @Override
-                    public void onComplete(@NonNull Task<InstanceIdResult> task) {
+                    public void onComplete(@NonNull Task<String> task) {
                         if (!task.isSuccessful()) {
                             Log.w(TAG, "FCM unregistration failed", task.getException());
                             return;
                         }
 
                         // Get new Instance ID token
-                        String fcmToken = task.getResult().getToken();
+                        String fcmToken = task.getResult();
                         if (fcmToken != null && accessToken != null) {
                             if (BuildConfig.DEBUG) {
                                 Log.i(TAG, "Unregistering with FCM");

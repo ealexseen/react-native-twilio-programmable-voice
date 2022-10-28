@@ -752,14 +752,29 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
      *
      */
     private void registerForCallInvites() {
-        Task<String> fcmToken = FirebaseMessaging.getInstance().getToken();
-        if (fcmToken == null && accessToken == null) {
-            return;
-        }
-        if (BuildConfig.DEBUG) {
-            Log.i(TAG, "Registering with FCM");
-        }
-        Voice.register(accessToken, Voice.RegistrationChannel.FCM, String.valueOf(fcmToken), registrationListener);
+      FirebaseMessaging.getInstance().getToken()
+        .addOnCompleteListener(new OnCompleteListener<String>() {
+          @Override
+          public void onComplete(@NonNull Task<String> task) {
+            if (!task.isSuccessful()) {
+              Log.w(TAG, "Fetching FCM registration token failed", task.getException());
+              return;
+            }
+
+            // Get new FCM registration token
+            String fcmToken = task.getResult();
+
+            Log.i(TAG, "Get FCM registration token" + fcmToken);
+
+            if (fcmToken == null && accessToken == null) {
+              return;
+            }
+            if (BuildConfig.DEBUG) {
+              Log.i(TAG, "Registering with FCM");
+            }
+            Voice.register(accessToken, Voice.RegistrationChannel.FCM, fcmToken, registrationListener);
+          }
+        });
     }
 
     /*

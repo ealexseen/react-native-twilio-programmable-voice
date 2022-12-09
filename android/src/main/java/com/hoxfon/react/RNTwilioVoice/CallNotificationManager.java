@@ -89,7 +89,7 @@ public class CallNotificationManager {
                 0,
                 new Intent(Constants.ACTION_CLEAR_MISSED_CALLS_COUNT)
                         .putExtra(Constants.INCOMING_CALL_NOTIFICATION_ID, Constants.CLEAR_MISSED_CALLS_NOTIFICATION_ID),
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+                0
         );
         /*
          * Pass the notification id and call sid to use as an identifier to open the notification

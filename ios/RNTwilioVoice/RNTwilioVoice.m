@@ -310,33 +310,27 @@ RCT_REMAP_METHOD(getCallInvite,
 didReceiveIncomingPushWithPayload:(PKPushPayload *)payload
              forType:(PKPushType)type
 withCompletionHandler:(void (^)(void))completion {
-    if ([payload.dictionaryPayload[@"twi_message_type"] isEqualToString:@"twilio.voice.cancel"]) {
-        CXHandle *callHandle = [[CXHandle alloc] initWithType:CXHandleTypeGeneric value:@"alice"];
+    NSLog(@"TVoice pushRegistry:didReceiveIncomingPushWithPayload:forType:withCompletionHandler");
 
-        CXCallUpdate *callUpdate = [[CXCallUpdate alloc] init];
-        callUpdate.remoteHandle = callHandle;
-        callUpdate.supportsDTMF = YES;
-        callUpdate.supportsHolding = YES;
-        callUpdate.supportsGrouping = NO;
-        callUpdate.supportsUngrouping = NO;
-        callUpdate.hasVideo = NO;
+    // Save for later when the notification is properly handled.
+    self.incomingPushCompletionCallback = completion;
 
-        NSUUID *uuid = [NSUUID UUID];
 
-        [self.callKitProvider reportNewIncomingCallWithUUID:uuid update:callUpdate completion:^(NSError *error) {
-            ...
-        }];
-
-        dispatch_async(dispatch_get_main_queue(), ^{
-            CXEndCallAction *endCallAction = [[CXEndCallAction alloc] initWithCallUUID:uuid];
-            CXTransaction *transaction = [[CXTransaction alloc] initWithAction:endCallAction];
-
-            [self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
-                ...
-            }];
-        });
-
-        return;
+    if ([type isEqualToString:PKPushTypeVoIP]) {
+        // The Voice SDK will use main queue to invoke `cancelledCallInviteReceived:error` when delegate queue is not passed
+        if (![TwilioVoice handleNotification:payload.dictionaryPayload delegate:self delegateQueue: nil]) {
+            NSLog(@"TVoice This is not a valid Twilio Voice notification.");
+        }
+    }
+    if ([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion < 13) {
+        // Save for later when the notification is properly handled.
+        self.incomingPushCompletionCallback = completion;
+    } else {
+        /**
+        * The Voice SDK processes the call notification and returns the call invite synchronously. Report the incoming call to
+        * CallKit and fulfill the completion before exiting this callback method.
+        */
+        completion();
     }
 }
 

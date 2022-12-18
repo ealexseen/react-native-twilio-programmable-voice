@@ -34,6 +34,8 @@ import java.util.Random;
 import static com.hoxfon.react.RNTwilioVoice.TwilioVoiceModule.TAG;
 import io.intercom.android.sdk.push.IntercomPushClient;
 
+import com.google.firebase.messaging.RemoteMessage.PRIORITY_HIGH;
+
 public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
     private final IntercomPushClient intercomPushClient = new IntercomPushClient();
 
@@ -62,6 +64,16 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
 
             // Check if message contains a data payload.
             if (remoteMessage.getData().size() > 0) {
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    if (message.getOriginalPriority() == PRIORITY_HIGH &&
+                            message.getPriority() != message.getOriginalPriority()
+                    ) {
+                        // we can not start a service from background if priority != high
+                        return;
+                    }
+                }
+
                 Map<String, String> data = remoteMessage.getData();
 
                 // If notification ID is not provided by the user for push notification, generate one at random

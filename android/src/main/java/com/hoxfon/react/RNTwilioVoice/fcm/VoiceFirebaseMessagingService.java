@@ -66,8 +66,8 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
             if (remoteMessage.getData().size() > 0) {
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    if (message.getOriginalPriority() == PRIORITY_HIGH &&
-                            message.getPriority() != message.getOriginalPriority()
+                    if (remoteMessage.getOriginalPriority() == PRIORITY_HIGH &&
+                            remoteMessage.getPriority() != remoteMessage.getOriginalPriority()
                     ) {
                         // we can not start a service from background if priority != high
                         return;

@@ -136,6 +136,9 @@ const Twilio = {
         _eventHandlers[type].get(handler).remove()
         _eventHandlers[type].delete(handler)
     },
+    initPushRegistryFromRN() {
+        TwilioVoice.initPushRegistryFromRN()
+    }
 }
 
 export default Twilio

@@ -727,21 +727,21 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
         params.putBoolean("initialized", true);
         promise.resolve(params);
 
-        if (getCurrentActivity() != null) {
-            try {
-                startAudioSwitch();
-            } catch (ConcurrentModificationException ex) {
-                ex.printStackTrace();
-            }
-
-            Intent intent = getCurrentActivity().getIntent();
-
-            if (intent == null || intent.getAction() == null) {
-                return;
-            }
-
-            this.getActivityLaunchOption(intent);
+        try {
+            startAudioSwitch();
+        } catch (ConcurrentModificationException ex) {
+            ex.printStackTrace();
         }
+
+        if (getCurrentActivity() != null) {
+            Intent intent = getCurrentActivity().getIntent();
+        }
+
+        if (intent == null || intent.getAction() == null) {
+            return;
+        }
+
+        this.getActivityLaunchOption(intent);
     }
 
     /*

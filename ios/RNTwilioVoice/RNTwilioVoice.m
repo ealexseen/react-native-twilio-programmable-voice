@@ -261,6 +261,29 @@ RCT_REMAP_METHOD(getCallInvite,
     }
 }
 
+- (void) sendCallEventFor:(TVOCall*)call {
+    NSMutableDictionary *params = [NSMutableDictionary new];
+    if (call.sid) {
+        [params setObject:call.sid forKey:@"call_sid"];
+    }
+    if (call.from) {
+        [params setObject:call.from forKey:@"call_from"];
+    }
+    if (call.to) {
+        [params setObject:call.to forKey:@"call_to"];
+    }
+    
+    [self sendDelayedEventWithName:@"deviceDidReceiveIncoming" body:params];
+}
+
+- (void) sendDelayedEventWithName:(NSString*)eventName body:(id)body {
+#warning an absolute shitcode to shitfix a race condition between RN codebase and native services, don't ever do that'
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self sendEventWithName:eventName body:body];
+    });
+}
+
+
 #pragma mark - PKPushRegistryDelegate
 - (void)pushRegistry:(PKPushRegistry *)registry didUpdatePushCredentials:(PKPushCredentials *)credentials forType:(NSString *)type {
     NSLog(@"TVoice pushRegistry:didUpdatePushCredentials:forType");
@@ -369,7 +392,6 @@ withCompletionHandler:(void (^)(void))completion {
         from = callInvite.customParameters[kCallerNameCustomParameter];
     }
     // Always report to CallKit
-    #warning Report the incoming call
     [self reportIncomingCallFrom:from withUUID:callInvite.uuid];
     self.activeCallInvites[[callInvite.uuid UUIDString]] = callInvite;
     if ([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion < 13) {
@@ -826,6 +848,9 @@ withCompletionHandler:(void (^)(void))completion {
         self.callKitCompletionCallback = completionHandler;
         self.activeCall = call;
         self.activeCalls[call.uuid.UUIDString] = call;
+        if (UIApplication.sharedApplication.applicationState != UIApplicationStateActive) {
+            [self sendCallEventFor:call];
+        }
     }
     
     [self.activeCallInvites removeObjectForKey:callInvite.uuid.UUIDString];

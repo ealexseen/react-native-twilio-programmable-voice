@@ -7,10 +7,6 @@ import android.os.Looper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-import androidx.work.Data;
-import androidx.work.OneTimeWorkRequest;
-import androidx.work.WorkManager;
-
 import android.util.Log;
 
 import android.os.Build;
@@ -22,10 +18,8 @@ import com.facebook.react.bridge.ReactContext;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
-import com.google.gson.Gson;
 import com.hoxfon.react.RNTwilioVoice.Constants;
 import com.hoxfon.react.RNTwilioVoice.IncomingCallNotificationService;
-import com.hoxfon.react.RNTwilioVoice.IncomingCallNotificationWorker;
 import com.twilio.voice.CallException;
 import com.hoxfon.react.RNTwilioVoice.BuildConfig;
 import com.hoxfon.react.RNTwilioVoice.CallNotificationManager;
@@ -34,7 +28,6 @@ import com.twilio.voice.CancelledCallInvite;
 import com.twilio.voice.MessageListener;
 import com.twilio.voice.Voice;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 
@@ -149,36 +142,13 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
         }
     }
 
-    public static String serializeToJson(CallInvite callInvite) {
-        Gson gson = new Gson();
-        return gson.toJson(callInvite);
-    }
-
     private void handleInvite(CallInvite callInvite, int notificationId) {
         Intent intent = new Intent(this, IncomingCallNotificationService.class);
-
         intent.setAction(Constants.ACTION_INCOMING_CALL);
         intent.putExtra(Constants.INCOMING_CALL_NOTIFICATION_ID, notificationId);
         intent.putExtra(Constants.INCOMING_CALL_INVITE, callInvite);
 
-        // Passing params
-        Data.Builder builder = new Data.Builder();
-        Map params = new HashMap<String, Object>();
-
-        params.put(Constants.INCOMING_CALL_INVITE, serializeToJson(callInvite));
-        params.put(Constants.INCOMING_CALL_NOTIFICATION_ID, notificationId);
-        params.put("CALL_ACTION", Constants.ACTION_INCOMING_CALL);
-
-        builder.putAll(params);
-        Data data = builder.build();
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            OneTimeWorkRequest request = new OneTimeWorkRequest
-              .Builder(IncomingCallNotificationWorker.class).addTag("IncomingCallNotificationWorker")
-              .setInputData(data)
-              .build();
-            WorkManager.getInstance (this).enqueue(request);
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent);
         } else {
             startService(intent);

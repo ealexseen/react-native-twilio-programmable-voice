@@ -154,6 +154,11 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
         return gson.toJson(callInvite);
     }
 
+    public static String serializeToJsonCancelledCallInvite(CancelledCallInvite cancelledCallInvite) {
+        Gson gson = new Gson();
+        return gson.toJson(cancelledCallInvite);
+    }
+
     private void handleInvite(CallInvite callInvite, int notificationId) {
         Intent intent = new Intent(this, IncomingCallNotificationService.class);
 
@@ -177,7 +182,7 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
               .Builder(IncomingCallNotificationWorker.class).addTag("IncomingCallNotificationWorker")
               .setInputData(data)
               .build();
-            WorkManager.getInstance (this).enqueue(request);
+            WorkManager.getInstance(this).enqueue(request);
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent);
         } else {
@@ -186,14 +191,31 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
     }
 
     private void handleCancelledCallInvite(CancelledCallInvite cancelledCallInvite, CallException callException) {
-        Intent intent = new Intent(this, IncomingCallNotificationService.class);
-        intent.setAction(Constants.ACTION_CANCEL_CALL);
-        intent.putExtra(Constants.CANCELLED_CALL_INVITE, cancelledCallInvite);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          // Passing params
+          Data.Builder builder = new Data.Builder();
+          Map params = new HashMap<String, Object>();
 
-        if (callException != null) {
-            intent.putExtra(Constants.CANCELLED_CALL_INVITE_EXCEPTION, callException.getMessage());
+          params.put(Constants.CANCELLED_CALL_INVITE, serializeToJsonCancelledCallInvite(cancelledCallInvite));
+          params.put("CALL_ACTION", Constants.ACTION_CANCEL_CALL);
+
+          builder.putAll(params);
+          Data data = builder.build();
+          OneTimeWorkRequest request = new OneTimeWorkRequest
+            .Builder(IncomingCallNotificationWorker.class).addTag("IncomingCallNotificationWorker")
+            .setInputData(data)
+            .build();
+          WorkManager.getInstance(this).enqueue(request);
+        } else {
+          Intent intent = new Intent(this, IncomingCallNotificationService.class);
+          intent.setAction(Constants.ACTION_CANCEL_CALL);
+          intent.putExtra(Constants.CANCELLED_CALL_INVITE, cancelledCallInvite);
+
+          if (callException != null) {
+              intent.putExtra(Constants.CANCELLED_CALL_INVITE_EXCEPTION, callException.getMessage());
+          }
+
+          startService(intent);
         }
-
-        startService(intent);
     }
 }

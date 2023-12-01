@@ -121,14 +121,10 @@ RCT_EXPORT_METHOD(sendDigits: (NSString *)digits) {
 RCT_EXPORT_METHOD(unregister) {
     NSLog(@"TVoice unregister");
     NSString *accessToken = [self fetchAccessToken];
-    
-    if (!accessToken) {
-        return;
-    }
 
     NSData *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
     
-    if ([cachedDeviceToken length] > 0) {
+    if ([cachedDeviceToken length] > 0 && accessToken) {
         [TwilioVoiceSDK unregisterWithAccessToken:accessToken
                                    deviceToken:cachedDeviceToken
                                     completion:^(NSError * _Nullable error) {
@@ -301,7 +297,7 @@ RCT_REMAP_METHOD(getCallInvite,
     if ([type isEqualToString:PKPushTypeVoIP] || type == PKPushTypeVoIP) {
         NSString *accessToken = [self fetchAccessToken];
         NSData *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
-        
+
         _newDeviceToken = credentials.token;
         
         if (!_newDeviceToken || !accessToken) {

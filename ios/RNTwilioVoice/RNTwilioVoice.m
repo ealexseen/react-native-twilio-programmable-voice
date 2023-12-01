@@ -31,6 +31,7 @@ NSString * const kCallerNameCustomParameter = @"CallerName";
     NSMutableDictionary *_callParams;
     NSString *_tokenUrl;
     NSString *_token;
+    NSData *_newDeviceToken;
 }
 
 NSString * const StateConnecting = @"CONNECTING";
@@ -120,7 +121,13 @@ RCT_EXPORT_METHOD(sendDigits: (NSString *)digits) {
 RCT_EXPORT_METHOD(unregister) {
     NSLog(@"TVoice unregister");
     NSString *accessToken = [self fetchAccessToken];
-    NSString *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
+    
+    if (!accessToken) {
+        return;
+    }
+
+    NSData *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
+    
     if ([cachedDeviceToken length] > 0) {
         [TwilioVoiceSDK unregisterWithAccessToken:accessToken
                                    deviceToken:cachedDeviceToken
@@ -128,10 +135,12 @@ RCT_EXPORT_METHOD(unregister) {
             if (error) {
                 NSLog(@"TVoice An error occurred while unregistering: %@", [error localizedDescription]);
             } else {
-                [[NSUserDefaults standardUserDefaults] setValue:@"" forKey:kCachedDeviceToken];
+                [[NSUserDefaults standardUserDefaults] setValue:NULL forKey:kCachedDeviceToken];
                 NSLog(@"TVoice Successfully unregistered for VoIP push notifications.");
             }
         }];
+        
+        _newDeviceToken = NULL;
     }
 }
 
@@ -215,10 +224,11 @@ RCT_REMAP_METHOD(getCallInvite,
 
 - (void) reRegisterWithTwilioVoice {
     NSString *accessToken = [self fetchAccessToken];
-    NSString *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
-    NSLog(@"TwilioVoice accessToken: %@", [NSString stringWithFormat:@"%@",accessToken]);
-    NSLog(@"TwilioVoice cachedDeviceToken: %@", [NSString stringWithFormat:@"%@",cachedDeviceToken]);
-    if (cachedDeviceToken.length > 0) {
+    NSData *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
+    
+    NSLog(@"TVoice accessToken reRegisterWithTwilioVoice: %@", accessToken);
+
+    if ([cachedDeviceToken length] > 0 && accessToken) {
         [TwilioVoiceSDK registerWithAccessToken:accessToken
                                            deviceToken:cachedDeviceToken
                                             completion:^(NSError *error) {
@@ -241,7 +251,6 @@ RCT_REMAP_METHOD(getCallInvite,
                    }];
                   
     }
-    
 }
 
 - (void)initPushRegistry {
@@ -290,15 +299,19 @@ RCT_REMAP_METHOD(getCallInvite,
     NSLog(@"type: %@", type);
     
     if ([type isEqualToString:PKPushTypeVoIP] || type == PKPushTypeVoIP) {
-        const unsigned *tokenBytes = [credentials.token bytes];
-        NSString *deviceTokenString = [NSString stringWithFormat:@"<%08x %08x %08x %08x %08x %08x %08x %08x>",
-                                       ntohl(tokenBytes[0]), ntohl(tokenBytes[1]), ntohl(tokenBytes[2]),
-                                       ntohl(tokenBytes[3]), ntohl(tokenBytes[4]), ntohl(tokenBytes[5]),
-                                       ntohl(tokenBytes[6]), ntohl(tokenBytes[7])];
         NSString *accessToken = [self fetchAccessToken];
-        NSString *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
-        if (![cachedDeviceToken isEqualToString:deviceTokenString]) {
-            cachedDeviceToken = deviceTokenString;
+        NSData *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
+        
+        _newDeviceToken = credentials.token;
+        
+        if (!_newDeviceToken || !accessToken) {
+            return;
+        }
+        
+        NSLog(@"TVoice cachedDeviceToken didUpdatePushCredentials %@", cachedDeviceToken);
+
+        if (![cachedDeviceToken isEqualToData:_newDeviceToken]) {
+            cachedDeviceToken = _newDeviceToken;
             
             /*
              * Perform registration if a new device token is detected.
@@ -334,19 +347,21 @@ RCT_REMAP_METHOD(getCallInvite,
     
     if ([type isEqualToString:PKPushTypeVoIP]) {
         NSString *accessToken = [self fetchAccessToken];
+        NSData *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
         
-        NSString *cachedDeviceToken = [[NSUserDefaults standardUserDefaults] objectForKey:kCachedDeviceToken];
-        if ([cachedDeviceToken length] > 0) {
+        if ([cachedDeviceToken length] > 0 && accessToken) {
             [TwilioVoiceSDK unregisterWithAccessToken:accessToken
                                        deviceToken:cachedDeviceToken
                                         completion:^(NSError * _Nullable error) {
                 if (error) {
                     NSLog(@"TVoice An error occurred while unregistering: %@", [error localizedDescription]);
                 } else {
-                    [[NSUserDefaults standardUserDefaults] setValue:@"" forKey:kCachedDeviceToken];
+                    [[NSUserDefaults standardUserDefaults] setValue:NULL forKey:kCachedDeviceToken];
                     NSLog(@"TVoice Successfully unregistered for VoIP push notifications.");
                 }
             }];
+            
+            _newDeviceToken = NULL;
         }
     }
 }

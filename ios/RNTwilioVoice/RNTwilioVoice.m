@@ -306,7 +306,10 @@ RCT_REMAP_METHOD(getCallInvite,
         
         NSLog(@"TVoice cachedDeviceToken didUpdatePushCredentials %@", cachedDeviceToken);
 
-        if (![cachedDeviceToken isEqualToData:_newDeviceToken]) {
+        BOOL hasEqualToData = [cachedDeviceToken respondsToSelector:@selector(isEqualToData:)];
+        BOOL isEqualData = hasEqualToData && [cachedDeviceToken isEqualToData: _newDeviceToken];
+
+        if (!isEqualData) {
             cachedDeviceToken = _newDeviceToken;
             
             /*

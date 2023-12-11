@@ -167,23 +167,24 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
         intent.putExtra(Constants.INCOMING_CALL_INVITE, callInvite);
 
         // Passing params
-        Data.Builder builder = new Data.Builder();
-        Map params = new HashMap<String, Object>();
+        // Data.Builder builder = new Data.Builder();
+        // Map params = new HashMap<String, Object>();
 
-        params.put(Constants.INCOMING_CALL_INVITE, serializeToJson(callInvite));
-        params.put(Constants.INCOMING_CALL_NOTIFICATION_ID, notificationId);
-        params.put("CALL_ACTION", Constants.ACTION_INCOMING_CALL);
+        // params.put(Constants.INCOMING_CALL_INVITE, serializeToJson(callInvite));
+        // params.put(Constants.INCOMING_CALL_NOTIFICATION_ID, notificationId);
+        // params.put("CALL_ACTION", Constants.ACTION_INCOMING_CALL);
 
-        builder.putAll(params);
-        Data data = builder.build();
+        // builder.putAll(params);
+        // Data data = builder.build();
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            OneTimeWorkRequest request = new OneTimeWorkRequest
-              .Builder(IncomingCallNotificationWorker.class).addTag("IncomingCallNotificationWorker")
-              .setInputData(data)
-              .build();
-            WorkManager.getInstance(this).enqueue(request);
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        //     OneTimeWorkRequest request = new OneTimeWorkRequest
+        //       .Builder(IncomingCallNotificationWorker.class).addTag("IncomingCallNotificationWorker")
+        //       .setInputData(data)
+        //       .build();
+        //     WorkManager.getInstance(this).enqueue(request);
+        // } else
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent);
         } else {
             startService(intent);
@@ -191,22 +192,22 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
     }
 
     private void handleCancelledCallInvite(CancelledCallInvite cancelledCallInvite, CallException callException) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-          // Passing params
-          Data.Builder builder = new Data.Builder();
-          Map params = new HashMap<String, Object>();
+        // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        //   // Passing params
+        //   Data.Builder builder = new Data.Builder();
+        //   Map params = new HashMap<String, Object>();
 
-          params.put(Constants.CANCELLED_CALL_INVITE, serializeToJsonCancelledCallInvite(cancelledCallInvite));
-          params.put("CALL_ACTION", Constants.ACTION_CANCEL_CALL);
+        //   params.put(Constants.CANCELLED_CALL_INVITE, serializeToJsonCancelledCallInvite(cancelledCallInvite));
+        //   params.put("CALL_ACTION", Constants.ACTION_CANCEL_CALL);
 
-          builder.putAll(params);
-          Data data = builder.build();
-          OneTimeWorkRequest request = new OneTimeWorkRequest
-            .Builder(IncomingCallNotificationWorker.class).addTag("IncomingCallNotificationWorker")
-            .setInputData(data)
-            .build();
-          WorkManager.getInstance(this).enqueue(request);
-        } else {
+        //   builder.putAll(params);
+        //   Data data = builder.build();
+        //   OneTimeWorkRequest request = new OneTimeWorkRequest
+        //     .Builder(IncomingCallNotificationWorker.class).addTag("IncomingCallNotificationWorker")
+        //     .setInputData(data)
+        //     .build();
+        //   WorkManager.getInstance(this).enqueue(request);
+        // } else {
           Intent intent = new Intent(this, IncomingCallNotificationService.class);
           intent.setAction(Constants.ACTION_CANCEL_CALL);
           intent.putExtra(Constants.CANCELLED_CALL_INVITE, cancelledCallInvite);
@@ -216,6 +217,6 @@ public class VoiceFirebaseMessagingService extends FirebaseMessagingService {
           }
 
           startService(intent);
-        }
+        // }
     }
 }

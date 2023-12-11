@@ -28,6 +28,7 @@ public class Constants {
     public static final String ACTION_OPEN_CALL_IN_PROGRESS = "CALL_IN_PROGRESS";
     public static final String ACTION_JS_ANSWER = "ACTION_JS_ANSWER";
     public static final String ACTION_JS_REJECT = "ACTION_JS_REJECT";
+    public static final String STOP_FOREGROUND_ACTION = "STOP_FOREGROUND_ACTION";
 
     public static final String CALL_SID = "call_sid";
     public static final String CALL_STATE = "call_state";

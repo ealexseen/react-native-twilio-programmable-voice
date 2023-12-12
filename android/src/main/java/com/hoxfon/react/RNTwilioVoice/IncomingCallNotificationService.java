@@ -37,6 +37,11 @@ public class IncomingCallNotificationService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent.getAction().equals(Constants.STOP_FOREGROUND_ACTION)) {
+            stopForeground(true);
+            stopSelfResult(startId);
+        }
+
         if (BuildConfig.DEBUG) {
             Log.i(TAG, "IncomingCallNotificationService onStartCommand() intent: " + intent + ", flags: " + flags);
         }
@@ -183,14 +188,28 @@ public class IncomingCallNotificationService extends Service {
                 createActionPendingIntent(context, rejectIntent)
         ).build();
 
-        Intent acceptIntent = new Intent(context, IncomingCallNotificationService.class);
-        acceptIntent.setAction(Constants.ACTION_ACCEPT);
-        acceptIntent.putExtra(Constants.INCOMING_CALL_INVITE, callInvite);
-        acceptIntent.putExtra(Constants.INCOMING_CALL_NOTIFICATION_ID, notificationId);
+        // running activity instead of service because otherwise it does not work in Android 13 - https://salesmsg.atlassian.net/browse/SMR-2068
+        Intent activeCallIntent = new Intent(context, getMainActivityClass(context));
+        activeCallIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        activeCallIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        activeCallIntent.putExtra(Constants.INCOMING_CALL_INVITE, callInvite);
+        activeCallIntent.putExtra(Constants.INCOMING_CALL_NOTIFICATION_ID, notificationId);
+        activeCallIntent.putExtra(Constants.CALL_SID, callInvite.getCallSid());
+        activeCallIntent.putExtra(Constants.CALL_FROM, callInvite.getFrom());
+        activeCallIntent.putExtra(Constants.CALL_TO, callInvite.getTo());
+        activeCallIntent.setAction(Constants.ACTION_ACCEPT);
+
+        PendingIntent acceptIntent = PendingIntent.getActivity(
+                context,
+                0,
+                activeCallIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
         NotificationCompat.Action answerAction = new NotificationCompat.Action.Builder(
                 android.R.drawable.ic_menu_call,
                 getActionText(context, R.string.accept, R.color.green),
-                createActionPendingIntent(context, acceptIntent)
+                acceptIntent
         ).build();
 
         NotificationCompat.Builder builder =

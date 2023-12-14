@@ -114,6 +114,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
 
     private CallInvite activeCallInvite;
     private Call activeCall;
+    private String activeCallContact;
 
     private HeadsetManager headsetManager;
     private EventManager eventManager;
@@ -347,6 +348,11 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
                 } else if (!toNumber.equals("")) {
                     caller = toNumber;
                 }
+
+                if (params.hasKey(Constants.CONTACT)) {
+                    activeCallContact = params.getString(Constants.CONTACT);
+                }
+
                 activeCall = call;
                 callNotificationManager.createHangupNotification(getReactApplicationContext(),
                         call.getSid(), caller);
@@ -415,6 +421,7 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
                 toNumber = "";
                 toName = "";
                 activeCallInvite = null;
+                activeCallContact = null;
             }
 
             @Override
@@ -991,6 +998,12 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
             Log.i(TAG, "getActiveCall(). Active call state: " + activeCall.getState());
         }
         WritableMap params = Arguments.createMap();
+
+        if (activeCallContact != null) {
+            params.putString(Constants.CONTACT, activeCallContact);
+            activeCallContact = null;
+        }
+
         String toNum = activeCall.getTo();
         if (toNum == null) {
             toNum = toNumber;

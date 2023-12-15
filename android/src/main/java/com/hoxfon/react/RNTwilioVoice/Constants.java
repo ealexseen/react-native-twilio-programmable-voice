@@ -43,4 +43,5 @@ public class Constants {
     public static final String CALLER_VERIFICATION_VERIFIED = "verified";
     public static final String CALLER_VERIFICATION_UNVERIFIED = "unverified";
     public static final String CALLER_VERIFICATION_UNKNOWN = "unknown";
+    public static final String CONTACT = "contact";
 }

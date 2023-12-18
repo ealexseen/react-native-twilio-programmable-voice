@@ -116,7 +116,16 @@ public class IncomingCallNotificationService extends Service {
         Bundle extras = new Bundle();
         extras.putString(Constants.CALL_SID_KEY, callInvite.getCallSid());
 
-        String contentText = callInvite.getFrom() + " " + getString(R.string.call_incoming_content);
+        String CallerInfo = callInvite.getFrom();
+
+        if (callInvite.getCustomParameters() != null) {
+            String CallerName = callInvite.getCustomParameters().get(Constants.CALLER_NAME);
+            if (CallerName != null) {
+                CallerInfo = CallerName;
+            }
+        }
+
+        String contentText = CallerInfo + " " + getString(R.string.call_incoming_content);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             return buildNotification(contentText,
                     pendingIntent,

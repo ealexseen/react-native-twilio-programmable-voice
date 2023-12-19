@@ -39,6 +39,8 @@ NSString * const StateConnected = @"CONNECTED";
 NSString * const StateDisconnected = @"DISCONNECTED";
 NSString * const StateRejected = @"REJECTED";
 
+NSDictionary<NSString *, NSString *> *activeCallCustomParameters;
+
 - (dispatch_queue_t)methodQueue
 {
     return dispatch_get_main_queue();
@@ -153,6 +155,9 @@ RCT_REMAP_METHOD(getActiveCall,
         }
         if (self.activeCall.from) {
             [params setObject:self.activeCall.from forKey:@"call_from"];
+        }
+        if (activeCallCustomParameters) {
+            [params setObject:activeCallCustomParameters forKey:@"custom_parameters"];
         }
         if (self.activeCall.state == TVOCallStateConnected) {
             [params setObject:StateConnected forKey:@"call_state"];
@@ -276,6 +281,10 @@ RCT_REMAP_METHOD(getCallInvite,
     }
     if (call.to) {
         [params setObject:call.to forKey:@"call_to"];
+    }
+    
+    if (activeCallCustomParameters) {
+        [params setObject:activeCallCustomParameters forKey:@"custom_parameters"];
     }
     
     [self sendDelayedEventWithName:@"deviceDidReceiveIncoming" body:params];
@@ -424,6 +433,7 @@ withCompletionHandler:(void (^)(void))completion {
     }
     if (callInvite.customParameters) {
         [params setObject:callInvite.customParameters forKey:@"custom_parameters"];
+        activeCallCustomParameters = callInvite.customParameters;
     }
     
     [self sendEventWithName:@"deviceDidReceiveIncoming" body:params];
@@ -456,6 +466,7 @@ withCompletionHandler:(void (^)(void))completion {
         if (callInvite.to) {
             [params setObject:callInvite.to forKey:@"call_to"];
         }
+        activeCallCustomParameters = nil;
         [self sendEventWithName:@"callInviteCancelled" body:params];
     }
 }
@@ -488,6 +499,7 @@ withCompletionHandler:(void (^)(void))completion {
         if (callInvite.to) {
             [params setObject:callInvite.to forKey:@"call_to"];
         }
+        activeCallCustomParameters = nil;
         [self sendEventWithName:@"callInviteCancelled" body:params];
     }
 }
@@ -534,6 +546,10 @@ withCompletionHandler:(void (^)(void))completion {
         [callParams setObject:call.to forKey:@"call_to"];
     }
     
+    if (activeCallCustomParameters) {
+        [callParams setObject:activeCallCustomParameters forKey:@"custom_parameters"];
+    }
+
     [self sendEventWithName:@"connectionDidConnect" body:callParams];
 }
 
@@ -624,6 +640,7 @@ withCompletionHandler:(void (^)(void))completion {
     if (call.state == TVOCallStateDisconnected) {
         [params setObject:StateDisconnected forKey:@"call_state"];
     }
+    activeCallCustomParameters = nil;
     [self sendEventWithName:@"connectionDidDisconnect" body:params];
 }
 

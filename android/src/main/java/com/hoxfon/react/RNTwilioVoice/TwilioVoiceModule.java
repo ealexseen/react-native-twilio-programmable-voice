@@ -243,6 +243,13 @@ public class TwilioVoiceModule extends ReactContextBaseJavaModule implements Act
         if (BuildConfig.DEBUG) {
             Log.i(TAG, "onNewIntent(). Intent: " + intent.toString());
         }
+
+        if (intent.getAction().equals(Constants.ACTION_ACCEPT)) {
+            Intent stopIntent = new Intent(getReactApplicationContext(), IncomingCallNotificationService.class);
+            stopIntent.setAction(Constants.STOP_FOREGROUND_ACTION);
+            getReactApplicationContext().startService(stopIntent);
+        }
+
         handleStartActivityIntent(intent);
     }
 

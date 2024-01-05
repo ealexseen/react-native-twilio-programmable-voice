@@ -1,14 +1,22 @@
 package com.hoxfon.react.RNTwilioVoice;
 
+import android.Manifest;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothHeadset;
 import android.content.Context;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Vibrator;
 import android.util.Log;
 import static com.hoxfon.react.RNTwilioVoice.TwilioVoiceModule.TAG;
+import android.content.pm.PackageManager;
+
+import androidx.annotation.RequiresApi;
+import androidx.core.app.ActivityCompat;
 
 public class SoundPoolManager {
 
@@ -17,6 +25,8 @@ public class SoundPoolManager {
     private Ringtone ringtone = null;
     private AudioManager audioManager = null;
     private Vibrator vibe = null;
+
+    private static Context _context = null;
 
     private SoundPoolManager(Context context) {
         vibe = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
@@ -36,14 +46,43 @@ public class SoundPoolManager {
     public static SoundPoolManager getInstance(Context context) {
         if (instance == null) {
             instance = new SoundPoolManager(context);
+            _context = context;
         }
         return instance;
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.S)
+    private boolean isBluetoothHeadsetConnected() {
+        BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        boolean hasBluetoothPermission = ActivityCompat.checkSelfPermission(_context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED;
+
+        Log.i(TAG, "hasBluetoothPermission: " + hasBluetoothPermission);
+
+        try {
+            return bluetoothAdapter != null && bluetoothAdapter.isEnabled()
+                    && bluetoothAdapter.getProfileConnectionState(BluetoothHeadset.HEADSET) == BluetoothAdapter.STATE_CONNECTED;
+        } catch (NullPointerException ex) {
+            ex.printStackTrace();
+        }
+
+        return false;
     }
 
     public void playRinging() {
         if (audioManager.getRingerMode() == AudioManager.RINGER_MODE_NORMAL && !playing && ringtone != null) {
             ringtone.play();
             playing = true;
+            boolean isBluetoothHeadsetDeviceConnected = false;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                isBluetoothHeadsetDeviceConnected = isBluetoothHeadsetConnected();
+            }
+            Log.i(TAG, "isBluetoothHeadsetConnected: " + isBluetoothHeadsetDeviceConnected);
+
+            if (isBluetoothHeadsetDeviceConnected) {
+                audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                audioManager.startBluetoothSco();
+                audioManager.setBluetoothScoOn(true);
+            }
         } else if (audioManager.getRingerMode() == AudioManager.RINGER_MODE_VIBRATE) {
             long[] pattern = {0, 300, 1000};
 
